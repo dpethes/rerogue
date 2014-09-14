@@ -1,0 +1,31 @@
+4B material entry count MC
+4B offset after material entries / offset to textures
+MC * material entry (36B)
+{
+  2B int type: 
+      1=sky, trooper
+      2=mat
+  2B int 0, 1 (trooper, mat2)
+  4B float (misc)
+  4B float (1.0)
+  4B int always zero
+  4B int always 0x0A
+  16B name
+}
+4B int texcount Tc
+TC * texture entry
+{
+  4B int texture data offset
+  28B
+  4B int ? texname offset + 16, sometimes
+  4B int texname offset
+  2B int width
+  2B int height
+  8B ? texture format?
+}
+TC * texture data
+{
+  16B texname = material name
+  48B 16xRGB palette pri r_pilot, e_core, moze byt iny pocet
+  N * texture pixels, grayscale 4bit
+}
