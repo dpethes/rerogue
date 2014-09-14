@@ -1,0 +1,32 @@
+4B data size DS
+4B offset to pixels
+32B zeros
+4B description string offset DSO
+attributes {
+  2B width - must be increased to multiple of 2 if odd
+  2B height
+  1B 0x01
+  1B bits per pixel:
+      -0: 4bit
+      -1: 8bit
+  1B subtype:
+     -3 RGBA
+     -4 greyscale
+     -5 ? ov_rdir
+  1B 0, 0x80/128
+}
+4B zeros
+4B ?
+xB pixels
+(DSO - DS)B description string (zero term.)
+
+if there's more data in file, repeat
+
+
+subtype:
+0 - palette 16x3B RGB, 4bit per pixel
+1 - ?256x4B palette RGBA, 8bit per pixel?
+2 - ?16bit RGB?
+3 - RGBA 32bit
+4 - grayscale, 4bit per pixel if bpp = 0, else grayscale 8 bit
+5 - grayscale, 16bit per pixel

@@ -1,0 +1,25 @@
+15B zeros
+1B ? allways 0x3f (63)
+4B ?
+4B ? allways 0x0000003f (63)
+2B tile count
+2b ?
+4B offset to tiles
+4B offset to some data?
+2B width in BLK
+2B height in BLK
+BLK 
+{
+  width * height * 2B tile indices
+}
+xB ?
+tiles 
+{
+   2b texmap idx (from texture index file)
+   1b ?
+   1b lo - minimum height in tile (probably for terrain LOD?)
+   1b hi - maximum height in tile
+   25B - 5x5 heights
+}
+2B 0x0000
+   

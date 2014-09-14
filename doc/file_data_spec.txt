@@ -1,0 +1,32 @@
+HDR
+entry 
+{
+  16B char[16] section name
+  12B zero
+  4B base offset
+}
+
+DAT
+section 
+{
+  4B offset
+  4B size
+  xB file data, mod4 padded
+  entry 
+  {
+    4B int: file offset
+    4B int: file size, if directory then sum of all its file sizes
+    4B int: 0xFFFFFFFF padding 
+    2B int: type flag:
+               %10000000 - folder
+               %00000010 - file
+               %00000000 - file
+               %10000010 - subfolder?
+    2B int: if directory then sum of all subentry sizes plus this entry size (subentry count * 32 + 32)
+    16B char: filename (replace last "_" with "." if any)
+  }  
+}
+
+
+
+
