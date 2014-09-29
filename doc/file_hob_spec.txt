@@ -1,0 +1,8 @@
+xB other
+Vertices
+{
+  2B int X
+  2B int Y
+  2B int Z
+  2B int ?
+}
