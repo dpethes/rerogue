@@ -1,4 +1,23 @@
 xB other
+Faces 
+{
+  4B int filepos + 4
+  4B int face count
+  face block
+  {
+    4B int ?    
+    1B int 46/49/4B
+    1B int 51/71
+    1B int 0C
+    1B int block size: A = 40B, 9 = 36
+    2B ?
+    2B int increasing number, po 4 faces?
+    4x 2B indices
+    4B ????
+    4x4B?
+    ... until blocksize
+  }
+}
 Vertices
 {
   2B int X
