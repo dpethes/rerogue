@@ -88,6 +88,8 @@ begin
       tex.data_offset := f.ReadDWord;
       f.ReadBuffer(tex.unknown, 48);
   end;
+  
+  f.Free;
 end;
 
 var
