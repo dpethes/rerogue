@@ -43,16 +43,24 @@ begin
       face.b2 := f.ReadByte;  //51/71
       face.b3 := f.ReadByte;  //0C
       face.bsize := f.ReadByte * 4;  //block size: A = 40B, 9 = 36
-      f.ReadWord;  //?
-      f.ReadWord;  //increasing after 4 faces?
+
+      write(face.dw1:8, face.b1:3, face.b2:3, face.b3:3, face.bsize:3);
+      write(f.ReadWord:4);
+      write(f.ReadWord:4);
+//      f.ReadWord;  //?
+//      f.ReadWord;  //increasing after 4 faces?
       //12B
-      for k := 0 to 3 do
+      for k := 0 to 3 do begin
           face.indices[k] := f.ReadWord;
+          write(face.indices[k]:4, '-');
+      end;
       //20B
-      for k := 0 to face.bsize - 20 - 1 do
-          f.ReadByte;
+      for k := 0 to face.bsize - 20 - 1 do begin
+          write(f.ReadByte:3, ',');
+      end;
 
       hob.faces[i] := face;
+      writeln;
   end;
 end;
 
@@ -68,11 +76,13 @@ begin
   f.LoadFromFile(fname);
 
   //faces
-  f.Seek(756, fsFromBeginning);  //faceblock start
+  f.Seek(428, fsFromBeginning);  //faceblock start
   {
     428  - 1ky.hob
     1604 - hvyshut
     prbdroid: 756
+    wmvwng: 1648
+    xwing: 18304
   }
   hob.face_block_offset := f.ReadDWord; //filepos + 4
   hob.face_count := f.ReadDWord;        //face count
