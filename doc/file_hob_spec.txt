@@ -1,22 +1,22 @@
-4B entity_count. 0 in empty files, 1 for single objects, N>1 in opkg.hob files
+4B entity_count. 0 in empty files, 1 for most single objects, N>1 in opkg.hob files
 4B simple offset to vertices/faces - doesn't work all the time. Probably useless?
 
 16B name
 4B facegroups offset
-4B always 0x7C 124
-4B int 0x88, 0xA8
+4B int ? 0x7C, 
+4B int ? 0x88, 0xA8
 12B zero?
-4B 94, 0xD4
-4B 98, 0x100
-4B 9C, 0x104
-4B float:
+4B int ? 94, 0xD4
+4B int ? 98, 0x100
+4B int ? 9C, 0x104
+4B float ?:
     -bark_moon, cldcar: 1.0
     -sky, e_cor: 0.2 
     -wmvwing: 1.25
 12B zero
-5x4B floats
-4B int / bark_moon, e_cor, towc: 0xA = 10
-6x 4B float
+5x4B floats ?
+4B int ? -bark_moon, e_cor, towc: 0xA = 10
+6x 4B float ?
 
 2B number of facegroups? NOF
 2B number of facegroups? NOF
@@ -27,7 +27,7 @@ facegoup definitions
 
 4B 0xFFFFFFFF header end marker
 
-NOF * facegroup/meshdef0 {
+NOF * facegroup/meshdef0 132B {
   4B int
   4B int
   4B int
@@ -54,12 +54,12 @@ NOF * facegroup/meshdef1 96B {
   52B zero
 }
   
-NOF * face definition
+NOF * face block
 {
   8B zero
   4B int filepos + 4
   4B int face count FC
-  FC * face block
+  FC * face
   {
     4B int ?    
     1B int 46/49/4B

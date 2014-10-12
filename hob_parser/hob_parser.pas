@@ -16,15 +16,29 @@ type
       indices: array[0..3] of word;
   end;
 
-  THobFile = record
-      name: array[0..15] of byte;
-      face_block_offset: integer;
+  THobFaceGroup = record
+      meshdef1_offset: integer;
+
+      face_block_end_offset,
+      face_block_offset,
+      vertex_block_offset: integer;
+
       face_count: integer;
       faces: array of THobFace;
+
       vertex_count: integer;
       vertices: array of record
           x, y, z, unknown: smallint; //+-2^15
       end;
+  end;
+
+  THobFile = record
+      name: array[0..15] of byte;
+      face_group_offset: integer;
+      face_group_count: integer;
+      face_group_count0: integer;
+
+      face_groups: array of THobFaceGroup;
   end;
 
 function ParseHobFile(const fname: string): THobFile;
@@ -43,17 +57,27 @@ begin
   end;
 end;
 
-procedure ReadFaces(var hob: THobFile; var f: TMemoryStream);
+procedure ReadFaces(var group: THobFaceGroup; var f: TMemoryStream);
 var
-  face_count: integer;
   i, k: integer;
   face: THobFace;
   unknown: integer;
   file_pos: integer;
 begin
-  face_count := hob.face_count;
-  SetLength(hob.faces, face_count);
-  for i := 0 to face_count - 1 do begin
+  unknown := f.ReadDWord;
+  if (unknown <> 0) then
+      writeln('unusual file: zero');
+  unknown := f.ReadDWord;
+  if (unknown <> 0) then
+      writeln('unusual file: zero');
+  file_pos := f.ReadDWord;
+  if file_pos + 4 <> f.Position then
+      writeln('unusual file: face start position');
+  group.face_count := f.ReadDWord;
+  writeln('faces: ', group.face_count);
+
+  SetLength(group.faces, group.face_count);
+  for i := 0 to group.face_count - 1 do begin
       file_pos := f.Position;
       face.dw1 := f.ReadDWord;  //?
       face.b1 := f.ReadByte;  //46/49/4B
@@ -69,7 +93,7 @@ begin
 
       unknown := f.ReadWord;
       if (unknown <> 0) then
-           writeln('unusual file: unknown');
+          writeln('unusual file: unknown');
 
       face.tex_index := f.ReadWord;
       write(' ti: ', face.tex_index);
@@ -84,13 +108,62 @@ begin
       //read rest of the face block
       write(' rest: ');
       for k := f.Position to file_pos + face.bsize - 1 do begin
-          write(f.ReadByte: 4);
+          unknown := f.ReadByte;
+          write(unknown: 4);
       end;
-
-      hob.faces[i] := face;
       writeln;
-      Flush(stdout);
+
+      group.faces[i] := face;
   end;
+end;
+
+
+procedure ReadVertices(var group: THobFaceGroup; var f: TMemoryStream; const vertex_count: integer);
+var
+  i: integer;
+begin
+  SetLength(group.vertices, vertex_count);
+  for i := 0 to vertex_count - 1 do begin
+      group.vertices[i].x := f.ReadWord;
+      group.vertices[i].y := f.ReadWord;
+      group.vertices[i].z := f.ReadWord;
+      group.vertices[i].unknown := f.ReadWord;
+  end;
+end;
+
+
+procedure ReadFaceGroup(var fg: THobFaceGroup; var f: TMemoryStream);
+var
+  filepos: int64;
+begin
+  //save file position before seeking to face/vertex data and restore it, to read next group properly
+  filepos := f.Position;
+
+  //read group/meshdef0
+  f.Seek(16, fsFromCurrent);  //unknown
+  fg.meshdef1_offset := f.ReadDWord - 4;
+  writeln('fg meshdef offset:', fg.meshdef1_offset);
+
+  //read meshdef1
+  f.Seek(fg.meshdef1_offset, fsFromBeginning);
+  fg.face_block_end_offset := f.ReadDWord;
+  f.Seek(20, fsFromCurrent);  //zero
+  fg.vertex_count := f.ReadDWord;
+  f.Seek(8, fsFromCurrent);  //zero
+  fg.face_block_offset := f.ReadDWord;
+  fg.vertex_block_offset := f.ReadDWord;
+
+  //faces
+  writeln('faces at: ', fg.face_block_offset, hexStr(fg.face_block_offset, 4):6);
+  f.Seek(fg.face_block_offset, fsFromBeginning);
+  ReadFaces(fg, f);
+
+  //vertices
+  writeln('vertices at: ', fg.vertex_block_offset, hexStr(fg.vertex_block_offset, 4):6);
+  f.Seek(fg.vertex_block_offset, fsFromBeginning);
+  ReadVertices(fg, f, fg.vertex_count);
+
+  f.Seek(filepos + 132, fsFromBeginning);
 end;
 
 
@@ -107,47 +180,38 @@ begin
   f := TMemoryStream.Create;
   f.LoadFromFile(fname);
 
-  obj_count := f.ReadDWord;
-  unknown := f.ReadDWord; //sometimes face block start
+  obj_count := f.ReadDWord;  //object count
+  unknown := f.ReadDWord;    //sometimes face block start, but useless in general
   f.ReadBuffer(hob.name, 16);
+  hob.face_group_offset := f.ReadDWord;
 
   writeln(NameToString(hob.name));
   writeln('objects: ', obj_count);
-
-  meshdef_offset := f.ReadDWord;
-  f.Seek(meshdef_offset + 16, fsFromBeginning); //16B zero
-
-  meshdef_offset := f.ReadDWord;
-  f.Seek(meshdef_offset + 32, fsFromBeginning); //32B zero
-  face_block_offset := f.ReadDWord;
-
-  //faces
-  f.Seek(face_block_offset + 8, fsFromBeginning);  //faceblock start
-  {
-    bark_moon: 400
-    428  - 1ky.hob
-    trooper: 840
-    1604 - hvyshut
-    prbdroid: 756
-    wmvwng: 1648
-    xwing: 18304
-  }
-  hob.face_block_offset := f.ReadDWord; //filepos + 4
-  hob.face_count := f.ReadDWord;        //face count
-  ReadFaces(hob, f);
-  writeln('filepos: ', f.Position);
-
-  //vertices
-  vertex_count := (f.Size - f.Position) div 8;
-  SetLength(hob.vertices, vertex_count);
-  for i := 0 to vertex_count - 1 do begin
-      hob.vertices[i].x := f.ReadWord;
-      hob.vertices[i].y := f.ReadWord;
-      hob.vertices[i].z := f.ReadWord;
-      hob.vertices[i].unknown := f.ReadWord;
+  writeln('face group offset: ', hob.face_group_offset);
+  if obj_count = 0 then begin
+      result := hob;
+      exit;
   end;
-  hob.vertex_count := vertex_count;
-  writeln('vertex_count: ', vertex_count);
+  if obj_count > 1 then begin
+      writeln('reading failed: cannot read multiple objects yet!');
+      halt;
+  end;
+
+  //get face group count
+  f.Seek(124, fsFromBeginning); //16B zero
+  hob.face_group_count  := f.ReadWord;  //which?
+  hob.face_group_count0 := f.ReadWord;
+  if hob.face_group_count <> hob.face_group_count0 then begin
+      writeln('reading failed: facegroup counts don''t match!: ', hob.face_group_count, hob.face_group_count0:5);
+      halt;
+  end;
+
+  //read face group defs
+  SetLength(hob.face_groups, hob.face_group_count);
+  f.Seek(hob.face_group_offset, fsFromBeginning);
+  for i := 0 to hob.face_group_count - 1 do begin
+      ReadFaceGroup(hob.face_groups[i], f);
+  end;
 
   f.Free;
   result := hob;
