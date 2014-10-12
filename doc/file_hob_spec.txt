@@ -1,23 +1,79 @@
-xB other
-Faces 
+4B entity_count. 0 in empty files, 1 for single objects, N>1 in opkg.hob files
+4B simple offset to vertices/faces - doesn't work all the time. Probably useless?
+
+16B name
+4B facegroups offset
+4B always 0x7C 124
+4B int 0x88, 0xA8
+12B zero?
+4B 94, 0xD4
+4B 98, 0x100
+4B 9C, 0x104
+4B float:
+    -bark_moon, cldcar: 1.0
+    -sky, e_cor: 0.2 
+    -wmvwing: 1.25
+12B zero
+5x4B floats
+4B int / bark_moon, e_cor, towc: 0xA = 10
+6x 4B float
+
+2B number of facegroups? NOF
+2B number of facegroups? NOF
+facegoup definitions 
 {
+  offsets, names, floats
+}  
+
+4B 0xFFFFFFFF header end marker
+
+NOF * facegroup/meshdef0 {
+  4B int
+  4B int
+  4B int
+  4B int
+  4B int offset to meshdef1 + 4
+  8B zero
+  48B 3 * {
+    4B float 1.0
+    12B zero
+  }
+  4B int
+  3 * 4B float
+  3 * 4B float 1.0
+  28B zero
+}
+
+NOF * facegroup/meshdef1 96B {
+  4B int facedef end offset
+  20B zero
+  4B int vertices used
+  8B zero
+  4B int face def offset
+  4B int vertex def offset
+  52B zero
+}
+  
+NOF * face definition
+{
+  8B zero
   4B int filepos + 4
-  4B int face count
-  face block
+  4B int face count FC
+  FC * face block
   {
     4B int ?    
     1B int 46/49/4B
     1B int 51/71
     1B int 0C
-    1B int block size: A = 40B, 9 = 36
-    2B ?
-    2B int increasing number, po 4 faces?
-    4x 2B indices
-    4B ????
-    4x4B?
-    ... until blocksize
+    1B int block size / 4: A = 40B, 9 = 36, etc.
+        if block size = 9, this is a triangle, else quad
+    2B int zero?
+    2B int texture/material index?
+    4x 2B vertex indices, if triangle, the last index is zero. Vertex indices are relative to the face group
+    x bytes until block size
   }
 }
+
 Vertices
 {
   2B int X
