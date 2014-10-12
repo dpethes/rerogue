@@ -71,8 +71,8 @@ begin
   if (unknown <> 0) then
       writeln('unusual file: zero');
   file_pos := f.ReadDWord;
-  if file_pos + 4 <> f.Position then
-      writeln('unusual file: face start position');
+  if file_pos <> f.Position + 4 then
+      writeln('unusual file: face data start position');
   group.face_count := f.ReadDWord;
   writeln('faces: ', group.face_count);
 
