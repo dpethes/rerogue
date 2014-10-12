@@ -8,3 +8,5 @@ syntax: glob
 *.s
 *.res
 *.bat
+*.hob
+*.hmt
