@@ -8,7 +8,7 @@ uses
 
 type
   THobFace = record
-      dw1: integer;
+      flags: integer;
       b1, b2, b3: byte;
       bsize: byte;
       ftype: byte; //3 - tri, 4 - quad
@@ -84,7 +84,7 @@ begin
   SetLength(group.faces, group.face_count);
   for i := 0 to group.face_count - 1 do begin
       file_pos := f.Position;
-      face.dw1 := f.ReadDWord;  //?
+      face.flags := f.ReadDWord;  //?
       face.b1 := f.ReadByte;  //46/49/4B
       face.b2 := f.ReadByte;  //51/71
       face.b3 := f.ReadByte;  //0C
@@ -105,18 +105,17 @@ begin
       for k := 0 to unknown - 1 do
           buf[k] := f.ReadByte;
 
-      //face type: don't know how to distinguish between quad and triangle, so hack:
-      //if last vertex index is 0, consider this to be a triangle, quad otherwise.
-      //Breaks faces that really use the 0 vertex.
-      if face.indices[3] = 0 then
-          face.ftype := 3
+      //face type: quad or triangle
+      if face.flags and %1000 > 0 then
+          face.ftype := 4
       else
-          face.ftype := 4;
+          face.ftype := 3;
 
       group.faces[i] := face;
 
       if DumpFaces then begin
-          write(face.dw1:8, face.b1:3, face.b2:3, face.b3:3, face.bsize:3);
+          if face.ftype = 3 then write('t') else write('q');
+          write(face.flags:5, face.b1:3, face.b2:3, face.b3:3, face.bsize:3);
           write(' ti: ', face.tex_index);
           write(' coords: ');
           for k := 0 to 3 do
