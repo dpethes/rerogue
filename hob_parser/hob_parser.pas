@@ -33,6 +33,7 @@ type
   end;
 
   THobFile = record
+      obj_count: integer;
       name: array[0..15] of byte;
       face_group_offset: integer;
       face_group_count: integer;
@@ -183,25 +184,26 @@ var
   f: TMemoryStream;
   hob: THobFile;
   i: integer;
-  obj_count: integer;
   unknown: integer;
 begin
   f := TMemoryStream.Create;
   f.LoadFromFile(fname);
 
-  obj_count := f.ReadDWord;  //object count
+  hob.obj_count := f.ReadDWord;  //object count
   unknown := f.ReadDWord;    //sometimes face block start, but useless in general
+  if hob.obj_count = 0 then begin
+      result := hob;
+      writeln('hob file is empty!');
+      exit;
+  end;
+
   f.ReadBuffer(hob.name, 16);
   hob.face_group_offset := f.ReadDWord;
 
   writeln(NameToString(hob.name));
-  writeln('objects: ', obj_count);
+  writeln('objects: ', hob.obj_count);
   writeln('face group offset: ', hob.face_group_offset);
-  if obj_count = 0 then begin
-      result := hob;
-      exit;
-  end;
-  if obj_count > 1 then begin
+  if hob.obj_count > 1 then begin
       writeln('reading failed: cannot read multiple objects yet!');
       halt;
   end;
