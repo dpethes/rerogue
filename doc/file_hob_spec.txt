@@ -66,10 +66,10 @@ NOF * face block
     1B int 51/71
     1B int 0C
     1B int block size / 4: A = 40B, 9 = 36, etc.
-        if block size = 9, this is a triangle, else quad
     2B int zero?
     2B int texture/material index?
-    4x 2B vertex indices, if triangle, the last index is zero. Vertex indices are relative to the face group
+    4x 2B vertex indices, relative to the face group
+        -if the last index is zero, the face is most probably a triangle
     x bytes until block size
   }
 }

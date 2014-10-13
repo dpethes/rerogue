@@ -46,6 +46,9 @@ function ParseHobFile(const fname: string): THobFile;
 //**************************************************************************************************
 implementation
 
+const
+  DumpFaces = false;
+
 function NameToString(name: array of byte): string;
 var
   i: Integer;
@@ -63,6 +66,7 @@ var
   face: THobFace;
   unknown: integer;
   file_pos: integer;
+  buf: array[0..255] of byte;
 begin
   unknown := f.ReadDWord;
   if (unknown <> 0) then
@@ -84,36 +88,43 @@ begin
       face.b2 := f.ReadByte;  //51/71
       face.b3 := f.ReadByte;  //0C
       face.bsize := f.ReadByte * 4;  //block size: A = 40B, 9 = 36
-      if face.bsize = 36 then
-          face.ftype := 3
-      else
-          face.ftype := 4;
-
-      write(face.dw1:8, face.b1:3, face.b2:3, face.b3:3, face.bsize:3);
 
       unknown := f.ReadWord;
       if (unknown <> 0) then
           writeln('unusual file: unknown');
 
       face.tex_index := f.ReadWord;
-      write(' ti: ', face.tex_index);
 
       //read vertex indices
-      write(' coords: ');
-      for k := 0 to 3 do begin
+      for k := 0 to 3 do
           face.indices[k] := f.ReadWord;
-          write(face.indices[k]:4);
-      end;
 
       //read rest of the face block
-      write(' rest: ');
-      for k := f.Position to file_pos + face.bsize - 1 do begin
-          unknown := f.ReadByte;
-          write(unknown: 4);
-      end;
-      writeln;
+      unknown := file_pos + face.bsize - f.Position;
+      for k := 0 to unknown - 1 do
+          buf[k] := f.ReadByte;
+
+      //face type: don't know how to distinguish between quad and triangle, so hack:
+      //if last vertex index is 0, consider this to be a triangle, quad otherwise.
+      //Breaks faces that really use the 0 vertex.
+      if face.indices[3] = 0 then
+          face.ftype := 3
+      else
+          face.ftype := 4;
 
       group.faces[i] := face;
+
+      if DumpFaces then begin
+          write(face.dw1:8, face.b1:3, face.b2:3, face.b3:3, face.bsize:3);
+          write(' ti: ', face.tex_index);
+          write(' coords: ');
+          for k := 0 to 3 do
+              write(face.indices[k]:4);
+          write(' rest: ');
+          for k := 0 to unknown - 1 do
+              write(buf[k]:4);
+          writeln;
+      end;
   end;
 end;
 
@@ -172,9 +183,7 @@ var
   f: TMemoryStream;
   hob: THobFile;
   i: integer;
-  vertex_count: integer;
-  obj_count, face_block_offset: integer;
-  meshdef_offset: integer;
+  obj_count: integer;
   unknown: integer;
 begin
   f := TMemoryStream.Create;
@@ -203,7 +212,6 @@ begin
   hob.face_group_count0 := f.ReadWord;
   if hob.face_group_count <> hob.face_group_count0 then begin
       writeln('reading failed: facegroup counts don''t match!: ', hob.face_group_count, hob.face_group_count0:5);
-      halt;
   end;
 
   //read face group defs
