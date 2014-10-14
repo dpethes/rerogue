@@ -142,10 +142,10 @@ var
 begin
   SetLength(group.vertices, vertex_count);
   for i := 0 to vertex_count - 1 do begin
-      group.vertices[i].x := f.ReadWord;
-      group.vertices[i].y := f.ReadWord;
-      group.vertices[i].z := f.ReadWord;
-      group.vertices[i].unknown := f.ReadWord;
+      group.vertices[i].x := SmallInt(f.ReadWord);
+      group.vertices[i].y := SmallInt(f.ReadWord);
+      group.vertices[i].z := SmallInt(f.ReadWord);
+      group.vertices[i].unknown := SmallInt(f.ReadWord);
   end;
 end;
 
