@@ -159,27 +159,29 @@ begin
 
   //read group/meshdef0
   f.Seek(16, fsFromCurrent);  //unknown
-  fg.meshdef1_offset := f.ReadDWord - 4;
+  fg.meshdef1_offset := f.ReadDWord;
   writeln('fg meshdef offset:', fg.meshdef1_offset);
 
-  //read meshdef1
-  f.Seek(fg.meshdef1_offset, fsFromBeginning);
-  fg.face_block_end_offset := f.ReadDWord;
-  f.Seek(20, fsFromCurrent);  //zero
-  fg.vertex_count := f.ReadDWord;
-  f.Seek(8, fsFromCurrent);  //zero
-  fg.face_block_offset := f.ReadDWord;
-  fg.vertex_block_offset := f.ReadDWord;
+  if fg.meshdef1_offset > 0 then begin
+      //read meshdef1
+      f.Seek(fg.meshdef1_offset - 4, fsFromBeginning);
+      fg.face_block_end_offset := f.ReadDWord;
+      f.Seek(20, fsFromCurrent);  //zero
+      fg.vertex_count := f.ReadDWord;
+      f.Seek(8, fsFromCurrent);  //zero
+      fg.face_block_offset := f.ReadDWord;
+      fg.vertex_block_offset := f.ReadDWord;
 
-  //faces
-  writeln('faces at: ', fg.face_block_offset, hexStr(fg.face_block_offset, 4):6);
-  f.Seek(fg.face_block_offset, fsFromBeginning);
-  ReadFaces(fg, f);
+      //faces
+      writeln('faces at: ', fg.face_block_offset, hexStr(fg.face_block_offset, 4):6);
+      f.Seek(fg.face_block_offset, fsFromBeginning);
+      ReadFaces(fg, f);
 
-  //vertices
-  writeln('vertices at: ', fg.vertex_block_offset, hexStr(fg.vertex_block_offset, 4):6);
-  f.Seek(fg.vertex_block_offset, fsFromBeginning);
-  ReadVertices(fg, f, fg.vertex_count);
+      //vertices
+      writeln('vertices at: ', fg.vertex_block_offset, hexStr(fg.vertex_block_offset, 4):6);
+      f.Seek(fg.vertex_block_offset, fsFromBeginning);
+      ReadVertices(fg, f, fg.vertex_count);
+  end;
 
   f.Seek(filepos + 132, fsFromBeginning);
 end;
