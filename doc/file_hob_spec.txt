@@ -1,33 +1,40 @@
-4B entity_count. 0 in empty files, 1 for most single objects, N>1 in opkg.hob files
+4B object count OF. 0 in empty files
 4B simple offset to vertices/faces - doesn't work all the time. Probably useless?
 
-16B name
-4B facegroups offset
-4B int ? 0x7C, 
-4B int ? 0x88, 0xA8
-12B zero?
-4B int ? 94, 0xD4
-4B int ? 98, 0x100
-4B int ? 9C, 0x104
-4B float ?:
-    -bark_moon, cldcar: 1.0
-    -sky, e_cor: 0.2 
-    -wmvwing: 1.25
-12B zero
-5x4B floats ?
-4B int ? -bark_moon, e_cor, towc: 0xA = 10
-6x 4B float ?
-
-2B number of facegroups? NOF
-2B number of facegroups? NOF
-facegoup definitions 
+OF * object header 116B 
 {
-  offsets, names, floats
-}  
+  16B name
+  4B int facegroups offset
+  4B int facegroup header offset
+  4B int facegroup header 2 offset
+  12B zero
+  4B int ? 94, 0xD4
+  4B int ? 98, 0x100
+  4B int ? 9C, 0x104
+  4B float ?:
+      -bark_moon, cldcar: 1.0
+      -sky, e_cor: 0.2 
+      -wmvwing: 1.25
+  12B zero
+  5x4B floats ?
+  4B int offset before 0xFFFFFFFF header end marker
+  6x 4B float ?
+}
 
-4B 0xFFFFFFFF header end marker
+OF * facegroup header 
+{
+  2B number of facegroups? NOF
+  2B number of facegroups? NOF
+  facegoup definitions 
+  {
+    offsets, names, floats
+  }  
 
-NOF * facegroup/meshdef0 132B {
+  4B 0xFFFFFFFF header end marker
+}
+
+NOF * facegroup/meshdef0 132B 
+{
   4B int
   4B int
   4B int
@@ -44,7 +51,8 @@ NOF * facegroup/meshdef0 132B {
   28B zero
 }
 
-NOF * facegroup/meshdef1 96B {
+NOF * facegroup/meshdef1 96B 
+{
   4B int facedef end offset
   20B zero
   4B int vertices used

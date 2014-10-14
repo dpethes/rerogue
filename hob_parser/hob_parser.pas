@@ -32,14 +32,21 @@ type
       end;
   end;
 
-  THobFile = record
-      obj_count: integer;
+  THobObject = record
       name: array[0..15] of byte;
       face_group_offset: integer;
+      face_group_header_offset: integer;
+      face_group_header2_offset: integer;
+
       face_group_count: integer;
       face_group_count0: integer;
 
       face_groups: array of THobFaceGroup;
+  end;
+
+  THobFile = record
+      obj_count: integer;
+      objects: array of THobObject;
   end;
 
 function ParseHobFile(const fname: string): THobFile;
@@ -178,48 +185,63 @@ begin
 end;
 
 
+procedure ReadObject(var mesh: THobObject; var f: TMemoryStream);
+var
+  i: integer;
+begin
+  f.ReadBuffer(mesh.name, 16);
+  mesh.face_group_offset := f.ReadDWord;
+  mesh.face_group_header_offset := f.ReadDWord;
+  mesh.face_group_header2_offset := f.ReadDWord;
+
+  writeln('object: ', NameToString(mesh.name));
+  writeln('face group offset: ', mesh.face_group_offset);
+
+  //get face group count
+  f.Seek(mesh.face_group_header_offset, fsFromBeginning); //16B zero
+  mesh.face_group_count  := f.ReadWord;  //which?
+  mesh.face_group_count0 := f.ReadWord;
+  if mesh.face_group_count <> mesh.face_group_count0 then begin
+      writeln('facegroup counts don''t match!: ', mesh.face_group_count, mesh.face_group_count0:5);
+  end;
+
+  //read face group defs
+  SetLength(mesh.face_groups, mesh.face_group_count);
+  f.Seek(mesh.face_group_offset, fsFromBeginning);
+  for i := 0 to mesh.face_group_count - 1 do begin
+      ReadFaceGroup(mesh.face_groups[i], f);
+  end;
+end;
+
+
 function ParseHobFile(const fname: string): THobFile;
 var
   f: TMemoryStream;
   hob: THobFile;
   i: integer;
-  unknown: integer;
+  filepos: int64;
 begin
   f := TMemoryStream.Create;
   f.LoadFromFile(fname);
 
-  hob.obj_count := f.ReadDWord;  //object count
-  unknown := f.ReadDWord;    //sometimes face block start, but useless in general
+  hob.obj_count := f.ReadDWord;
+  f.ReadDWord;  //sometimes face block start, but useless in general
+
+  writeln('objects: ', hob.obj_count);
   if hob.obj_count = 0 then begin
-      result := hob;
       writeln('hob file is empty!');
+      result := hob;
       exit;
   end;
 
-  f.ReadBuffer(hob.name, 16);
-  hob.face_group_offset := f.ReadDWord;
+  SetLength(hob.objects, hob.obj_count);
+  for i := 0 to hob.obj_count - 1 do begin
+      filepos := f.Position;
+      ReadObject(hob.objects[i], f);
 
-  writeln(NameToString(hob.name));
-  writeln('objects: ', hob.obj_count);
-  writeln('face group offset: ', hob.face_group_offset);
-  if hob.obj_count > 1 then begin
-      writeln('reading failed: cannot read multiple objects yet!');
-      halt;
-  end;
-
-  //get face group count
-  f.Seek(124, fsFromBeginning); //16B zero
-  hob.face_group_count  := f.ReadWord;  //which?
-  hob.face_group_count0 := f.ReadWord;
-  if hob.face_group_count <> hob.face_group_count0 then begin
-      writeln('reading failed: facegroup counts don''t match!: ', hob.face_group_count, hob.face_group_count0:5);
-  end;
-
-  //read face group defs
-  SetLength(hob.face_groups, hob.face_group_count);
-  f.Seek(hob.face_group_offset, fsFromBeginning);
-  for i := 0 to hob.face_group_count - 1 do begin
-      ReadFaceGroup(hob.face_groups[i], f);
+      //seek to next object header
+      if i + 1 < hob.obj_count then
+          f.Seek(filepos + 116, fsFromBeginning);
   end;
 
   f.Free;
