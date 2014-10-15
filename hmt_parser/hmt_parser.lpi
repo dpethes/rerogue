@@ -5,6 +5,7 @@
     <PathDelim Value="\"/>
     <General>
       <Flags>
+        <SaveOnlyProjectUnits Value="True"/>
         <MainUnitHasCreateFormStatements Value="False"/>
         <MainUnitHasTitleStatement Value="False"/>
       </Flags>
@@ -31,12 +32,17 @@
         <FormatVersion Value="1"/>
       </local>
     </RunParams>
-    <Units Count="1">
+    <Units Count="2">
       <Unit0>
-        <Filename Value="hmt_parser.lpr"/>
+        <Filename Value="main.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="parse_hmt"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="hmt_parser.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="hmt_parser"/>
-      </Unit0>
+      </Unit1>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

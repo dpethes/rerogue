@@ -1,7 +1,10 @@
-program hmt_parser;
+unit hmt_parser;
+{$mode objfpc}{$H+}
 
- uses
-   Classes;
+interface
+
+uses
+  sysutils, Classes;
 
 type
   THmtMaterial = record
@@ -25,6 +28,10 @@ type
       textures: array of THmtTexture;
   end;
 
+procedure ParseHmtFile(const fname: string);
+
+//**************************************************************************************************
+implementation
 
 function NameToString(name: array of byte): string;
 var
@@ -82,7 +89,7 @@ begin
   //read textures
   if hmt.texture_count = 0 then
       exit;
-  f.Seek(hmt.texture_offset + sizeof(hmt.texture_count), TSeekOrigin.soBeginning);
+  f.Seek(hmt.texture_offset + sizeof(hmt.texture_count), fsFromCurrent);
   SetLength(hmt.textures, hmt.texture_count);
   for i := 0 to hmt.texture_count - 1 do begin
       tex.data_offset := f.ReadDWord;
@@ -92,22 +99,5 @@ begin
   f.Free;
 end;
 
-var
-  fname: string;
-
-begin
-  if ParamCount < 1 then begin
-      writeln ('no input file specified');
-      exit;
-  end;
-
-  fname := ParamStr(1);
-  writeln('parsing file: ', fname);
-  try
-      ParseHmtFile(fname);
-  except
-      writeln('parsing failed!');
-  end;
-  writeln('done.');
 end.
 
