@@ -8,24 +8,35 @@ MC * material entry (36B)
   2B int 0, 1 (trooper, mat2)
   4B float (misc)
   4B float (1.0)
-  4B int always zero
-  4B int always 0x0A
+  4B int zero
+  4B int 0x0A
   16B name
 }
 4B int texcount Tc
-TC * texture entry
+TC * texture entry 52B
 {
-  4B int texture data offset
-  28B
-  4B int ? texname offset + 16, sometimes
+  4B int pixel offset
+  28B zero
+  4B int palette offset
   4B int texname offset
   2B int width
   2B int height
-  8B ? texture format?
+  8B texture format {
+    1B 0x01
+    1B bits per pixel:
+        -0: 4bit
+        -1: 8bit
+    1B subtype:
+       -3 RGBA
+       -4 greyscale
+       -5 ? ov_rdir
+    1B 0, 0x40, 0x80
+    4B RGBA transparent color?
+  }
 }
 TC * texture data
 {
   16B texname = material name
-  48B 16xRGB palette pri r_pilot, e_core, moze byt iny pocet
-  N * texture pixels, grayscale 4bit
+  xB RGB palette
+  xB pixels/samples
 }

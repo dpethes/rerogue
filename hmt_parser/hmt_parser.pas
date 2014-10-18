@@ -4,7 +4,8 @@ unit hmt_parser;
 interface
 
 uses
-  sysutils, Classes;
+  sysutils, Classes,
+  rs_image;
 
 type
   THmtMaterial = record
@@ -17,7 +18,10 @@ type
 
   THmtTexture = record
       data_offset: integer;
-      unknown: array[0..47] of byte;
+      palette_offset: integer;
+      name_offset: integer;
+      width, height: word;
+      name: array[0..15] of byte;
   end;
 
   THmtFile = record
@@ -28,7 +32,7 @@ type
       textures: array of THmtTexture;
   end;
 
-procedure ParseHmtFile(const fname: string);
+  function ParseHmtFile(const fname: string): THmtFile;
 
 //**************************************************************************************************
 implementation
@@ -44,12 +48,67 @@ begin
   end;
 end;
 
-procedure ParseHmtFile(const fname: string);
+
+procedure ReadTexture(var tex: THmtTexture; var f: TMemoryStream);
+var
+  image: TRSImage;
+  buf: array[0..27] of byte;
+  description: TImageDescription;
+  bpp: byte;
+  color_rgba: integer;
+  pos: int64;
+begin
+  tex.data_offset := f.ReadDWord;
+  f.ReadBuffer(buf, 28);
+  tex.palette_offset := f.ReadDWord;
+  tex.name_offset := f.ReadDWord;
+  tex.width := f.ReadWord;
+  tex.height := f.ReadWord;
+
+  f.ReadByte; //0x01
+  bpp := f.ReadByte;
+  image.type_ := f.ReadByte;
+  f.ReadByte;
+  color_rgba := f.ReadDWord;
+
+  pos := f.Position;
+  f.Seek(tex.name_offset, TSeekOrigin.soBeginning);
+  f.ReadBuffer(tex.name, 16);
+  f.Seek(pos, TSeekOrigin.soBeginning);
+
+  description := ImageDescription[image.type_];
+  image.sampleBits := description.sample_bits;
+  image.paletteEntries := description.palette_entries;
+  if image.type_ = 4 then
+      image.sampleBits := bpp * 4 + 4;
+
+  writeln(NameToString(tex.name));
+  writeln('size: ', tex.width, 'x', tex.height);
+  writeln('subtype: ', image.type_);
+  writeln('sample bits: ', image.sampleBits);
+end;
+
+
+procedure ReadMaterial(var mat: THmtMaterial; var f: TMemoryStream);
+begin
+  mat.type1 := f.ReadWord;
+  mat.type2 := f.ReadWord;
+  mat.unknown_float1 := f.ReadDWord;
+  mat.unknown_float2 := f.ReadDWord;
+  mat.zero := f.ReadDWord;
+  mat.hex_a := f.ReadDWord;
+  f.ReadBuffer(mat.name, 16);
+
+  writeln(NameToString(mat.name));
+  if (mat.zero <> 0) or (mat.hex_a <> $A) then
+      writeln('unusual file');
+end;
+
+
+function ParseHmtFile(const fname: string): THmtFile;
 var
   f: TMemoryStream;
   hmt: THmtFile;
-  mat: THmtMaterial;
-  tex: THmtTexture;
   i: Integer;
 begin
   f := TMemoryStream.Create;
@@ -62,41 +121,29 @@ begin
   hmt.texture_count := f.ReadDWord;
   f.Seek(8, TSeekOrigin.soBeginning);
 
-  writeln('materials: ', hmt.material_count);
-  writeln('textures: ', hmt.texture_count);
-  writeln('  texture bytes: ', f.Size - sizeof(hmt.texture_count) - hmt.texture_offset);
-
   //read materials
+  writeln('materials: ', hmt.material_count);
   SetLength(hmt.materials, hmt.material_count);
   for i := 0 to hmt.material_count - 1 do begin
-      mat.type1 := f.ReadWord;
-      mat.type2 := f.ReadWord;
-      mat.unknown_float1 := f.ReadDWord;
-      mat.unknown_float2 := f.ReadDWord;
-      mat.zero := f.ReadDWord;
-      mat.hex_a := f.ReadDWord;
-      f.ReadBuffer(mat.name, 16);
-
-      hmt.materials[i] := mat;
+      ReadMaterial(hmt.materials[i], f);
   end;
 
-  for mat in hmt.materials do begin
-      writeln(NameToString(mat.name));
-      if (mat.zero <> 0) or (mat.hex_a <> $A) then
-          writeln('unusual file');
+  if hmt.texture_count = 0 then begin
+      result := hmt;
+      f.Free;
+      exit;
   end;
 
   //read textures
-  if hmt.texture_count = 0 then
-      exit;
-  f.Seek(hmt.texture_offset + sizeof(hmt.texture_count), fsFromCurrent);
+  writeln('textures: ', hmt.texture_count);
+  f.Seek(hmt.texture_offset + 4, TSeekOrigin.soBeginning);
   SetLength(hmt.textures, hmt.texture_count);
   for i := 0 to hmt.texture_count - 1 do begin
-      tex.data_offset := f.ReadDWord;
-      f.ReadBuffer(tex.unknown, 48);
+      ReadTexture(hmt.textures[i], f);
   end;
-  
+
   f.Free;
+  result := hmt;
 end;
 
 end.
