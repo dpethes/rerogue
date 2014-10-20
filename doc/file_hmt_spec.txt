@@ -2,10 +2,10 @@
 4B offset after material entries / offset to textures
 MC * material entry (36B)
 {
-  2B int type: 
-      1=sky, trooper
-      2=mat
-  2B int 0, 1 (trooper, mat2)
+  2B int material/texture type: 
+      1 - material with texture
+      2 - material without texture
+  2B int texture index
   4B float (misc)
   4B float (1.0)
   4B int zero
@@ -27,6 +27,7 @@ TC * texture entry 52B
     1B subtype:
        -0 - palette 16x3B RGB, 4bit per pixel
        -1 - 256x3B palette RGB, 8bit per pixel
+       -3 - RGBA 32bpp
        -4 - greyscale, 4bpp
     1B int ? 0, 0x40, 0x80
     4B RGBA transparent color?
