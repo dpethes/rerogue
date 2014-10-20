@@ -17,20 +17,18 @@ TC * texture entry 52B
 {
   4B int pixel offset
   28B zero
-  4B int palette offset
+  4B int palette offset, 0 = no palette
   4B int texname offset
   2B int width
   2B int height
   8B texture format {
-    1B 0x01
-    1B bits per pixel:
-        -0: 4bit
-        -1: 8bit
+    1B int ? 0x01
+    1B int ?
     1B subtype:
-       -3 RGBA
-       -4 greyscale
-       -5 ? ov_rdir
-    1B 0, 0x40, 0x80
+       -0 - palette 16x3B RGB, 4bit per pixel
+       -1 - 256x3B palette RGB, 8bit per pixel
+       -4 - greyscale, 4bpp
+    1B int ? 0, 0x40, 0x80
     4B RGBA transparent color?
   }
 }
