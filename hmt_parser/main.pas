@@ -33,7 +33,7 @@ end;
 procedure SaveImage(var image: TRSImage; const outname: string);
 begin
   case image.type_ of
-      0: pnm_save(outname + '.pnm', image.pixels, image.width, image.height);
+      0, 1: pnm_save(outname + '.pnm', image.pixels, image.width, image.height);
       //3: WriteTga(outname + '.tga', image.pixels, image.width, image.height, image.width * image.height * 4);
       4: pgm_save(outname + '.pgm', image.pixels, image.width, image.height);
   else
