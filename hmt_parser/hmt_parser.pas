@@ -22,6 +22,8 @@ type
       name_offset: integer;
       width, height: word;
       name: array[0..15] of byte;
+      name_string: string;
+      image: TRSImage;
   end;
 
   THmtFile = record
@@ -83,6 +85,7 @@ begin
   pos := f.Position;
   f.Seek(tex.name_offset, TSeekOrigin.soBeginning);
   f.ReadBuffer(tex.name, 16);
+  tex.name_string := NameToString(tex.name);
   f.Seek(pos, TSeekOrigin.soBeginning);
 
   description := ImageDescription[image.type_];
@@ -91,7 +94,7 @@ begin
   image.width := tex.width;
   image.height := tex.height;
 
-  writeln(NameToString(tex.name));
+  writeln('name: ', tex.name_string);
   writeln('size: ', tex.width, 'x', tex.height);
   writeln('subtype: ', image.type_, ' bpp: ', bpp);
   writeln('sample bits: ', image.sampleBits);
@@ -109,6 +112,7 @@ begin
 
   f.Seek(pos, TSeekOrigin.soBeginning);
   writeln;
+  tex.image := image;
 end;
 
 
