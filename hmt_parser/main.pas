@@ -2,7 +2,7 @@ program parse_hmt;
 {$mode objfpc}{$H+}
 
 uses
-  sysutils, hmt_parser, rs_image;
+  classes, sysutils, hmt_parser, rs_image;
 
 procedure pnm_save(const fname: string; const p: pbyte; const w, h: integer);
 var
@@ -30,11 +30,39 @@ Begin
   CloseFile (f);
 end;
 
+procedure WriteTga32b(const filename: string; const data: pbyte; const width, height, data_length: integer);
+const
+  HeaderComment = 'NZA';
+var
+  f: file;
+  stream: TMemoryStream;
+begin
+  stream := TMemoryStream.Create();
+  stream.WriteByte(Length(HeaderComment)); //id field length
+  stream.WriteByte (0);  //color map type
+  stream.WriteByte (2);  //image type: 2 = uncompressed true-color image
+  stream.WriteDWord(0);  //5B color map specification: 2B origin, 2B length
+  stream.WriteByte (0);  //                            1B Color Map Entry Size.
+  stream.WriteDWord(0);      //2B x origin, 2B y origin
+  stream.WriteWord (width);  //width in pixels
+  stream.WriteWord (height); //height in pixels
+  stream.WriteByte (32);     //bits per pixel
+  stream.WriteByte ($20);    //image descriptor
+  stream.Write(HeaderComment, Length(HeaderComment));
+
+  AssignFile(f, filename);
+  Rewrite(f, 1);
+  blockwrite(f, stream.Memory^, stream.Size);
+  blockwrite(f, data^, data_length);
+  CloseFile(f);
+  stream.Free;
+end;
+
 procedure SaveImage(var image: TRSImage; const outname: string);
 begin
   case image.type_ of
       0, 1: pnm_save(outname + '.pnm', image.pixels, image.width, image.height);
-      //3: WriteTga(outname + '.tga', image.pixels, image.width, image.height, image.width * image.height * 4);
+      3: WriteTga32b(outname + '.tga', image.pixels, image.width, image.height, image.width * image.height * 4);
       4: pgm_save(outname + '.pgm', image.pixels, image.width, image.height);
   else
       writeln('image type was not saved: ', image.type_);
