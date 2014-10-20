@@ -1,5 +1,4 @@
 unit rs_image;
-
 {$mode objfpc}{$H+}
 
 interface
@@ -10,7 +9,7 @@ uses
 type
   TRGB = array[0..2] of byte;
   PRGB = ^TRGB;
-  TPalette = array[0..256] of TRGB;
+  TPalette = array[0..255] of TRGB;
 
   TRSImage = record
       data_size: integer;
@@ -30,18 +29,9 @@ type
       //alpha: byte;
   end;
 
-const
-  ImageDescription: array[0..5] of TImageDescription = (
-      (palette_entries: 16;  sample_bits: 4),
-      (palette_entries: 256; sample_bits: 8),
-      (palette_entries: 0; sample_bits: 16),
-      (palette_entries: 0; sample_bits: 32),
-      (palette_entries: 0; sample_bits: 4),
-      (palette_entries: 0; sample_bits: 16)
-    );
-
-
-function LoadImageFromPack(var f: file): TRSImage;
+procedure LoadPalette(var image: TRSImage; var f: TMemoryStream);
+procedure LoadSamples(var image: TRSImage; var f: TMemoryStream);
+procedure DecodePixels(var img: TRSImage);
 
 //**************************************************************************************************
 implementation
@@ -149,19 +139,18 @@ begin
 end;
 
 
-procedure LoadPalette(var f: file; var image: TRSImage);
+procedure LoadPalette(var image: TRSImage; var f: TMemoryStream);
 var
   entries: integer;
 begin
   entries := image.paletteEntries;
   case entries of
-      16: Blockread(f, image.palette, entries * 3); //RGB
-      256: Blockread(f, image.palette, entries * 3); //RGB
+      16, 256: f.ReadBuffer(image.palette, entries * 3); //RGB
   end;
 end;
 
 
-procedure LoadSamples(var f: file; var image: TRSImage);
+procedure LoadSamples(var image: TRSImage; var f: TMemoryStream);
 var
   sample_bits: integer;
   size: integer;
@@ -169,70 +158,11 @@ begin
   sample_bits := image.sampleBits;
   size := image.width * image.height * sample_bits div 8;
   image.samples := getmem(size);
-  Blockread(f, image.samples^, size);
+  f.ReadBuffer(image.samples^, size);
   if image.type_ = 2 then
-      Blockread(f, image.samples^, size div 4);
+      f.ReadBuffer(image.samples^, size div 4);
 end;
 
-
-procedure LoadImageHeader(var f: file; var image: TRSImage);
-var
-  h: word;
-  w: word;
-  buffer: array[0..15] of byte;
-  description: TImageDescription;
-  bpp: byte;
-begin
-  blockread(f, w, 2);
-  blockread(f, h, 2);
-  blockread(f, buffer, 4);
-  blockread(f, buffer[8], 4);   //zero padding
-
-  w := w + (w and 1);  //make width even
-  image.width := w;
-  image.height := h;
-  bpp := buffer[1];
-  image.type_ := buffer[2];  //image type
-
-  description := ImageDescription[image.type_];
-  image.sampleBits := description.sample_bits;
-  image.paletteEntries := description.palette_entries;
-  if image.type_ = 4 then
-      image.sampleBits := bpp * 4 + 4;
-
-  writeln('data size: ', image.data_size);
-  writeln('size: ', image.width, 'x', image.height);
-  writeln('subtype: ', image.type_);
-  writeln('sample bits: ', image.sampleBits);
-  writeln('attrs: ', buffer[0], ', ', buffer[1], ', ', buffer[3]);
-end;
-
-
-procedure LoadName(var f: file; const data_size: integer);
-var
-  i: integer;
-  buffer: array[0..15] of byte;
-  s: string;
-begin
-  s := '';
-  blockread(f, buffer, data_size);
-  for i := 0 to data_size - 1 do
-      s += char(buffer[i]);
-  s := Trim(s);
-  writeln('name: ', s);
-end;
-
-
-function LoadImageFromPack(var f: file): TRSImage;
-var
-  offset, string_offset: integer;
-  buffer: array[0..31] of byte;
-begin
-  LoadPalette(f, result);
-  LoadSamples(f, result);
-  DecodePixels(result);
-  LoadName(f, result.data_size - string_offset);
-end;
 
 end.
 

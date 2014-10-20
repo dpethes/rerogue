@@ -50,6 +50,15 @@ end;
 
 
 procedure ReadTexture(var tex: THmtTexture; var f: TMemoryStream);
+const
+  ImageDescription: array[0..5] of TImageDescription = (
+      (palette_entries: 16;  sample_bits: 4),
+      (palette_entries: 256; sample_bits: 8),
+      (palette_entries: 0; sample_bits: 16),
+      (palette_entries: 0; sample_bits: 32),
+      (palette_entries: 0; sample_bits: 4),
+      (palette_entries: 0; sample_bits: 16)
+    );
 var
   image: TRSImage;
   buf: array[0..27] of byte;
@@ -79,13 +88,27 @@ begin
   description := ImageDescription[image.type_];
   image.sampleBits := description.sample_bits;
   image.paletteEntries := description.palette_entries;
-  if image.type_ = 4 then
-      image.sampleBits := bpp * 4 + 4;
+  image.width := tex.width;
+  image.height := tex.height;
 
   writeln(NameToString(tex.name));
   writeln('size: ', tex.width, 'x', tex.height);
-  writeln('subtype: ', image.type_);
+  writeln('subtype: ', image.type_, ' bpp: ', bpp);
   writeln('sample bits: ', image.sampleBits);
+  writeln('palette offset: ', tex.palette_offset);
+  writeln('data offset: ', tex.data_offset);
+
+  if tex.palette_offset > 0 then begin
+      writeln('palette entries: ', image.paletteEntries);
+      f.Seek(tex.palette_offset, TSeekOrigin.soBeginning);
+      LoadPalette(image, f);
+  end;
+  f.Seek(tex.data_offset, TSeekOrigin.soBeginning);
+  LoadSamples(image, f);
+  DecodePixels(image);
+
+  f.Seek(pos, TSeekOrigin.soBeginning);
+  writeln;
 end;
 
 
