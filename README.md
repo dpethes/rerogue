@@ -11,7 +11,7 @@ Use recent Lazarus (1.2.x) with Freepascal (2.6.x) to compile.
 TODO
 -----------
 
-* hmt parser: decode textures
-* hob parser: parse more header fields, parse UV data
+* hmt parser: decode all image subtypes
+* hob parser: parse more header fields
 * mesh viewer: reuse hmt & hob parsers to display data
 * bundle repack: extract & compile bundle.00x archives

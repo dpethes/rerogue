@@ -7,13 +7,24 @@ uses
   Classes, SysUtils;
 
 type
+  TRGBA = record
+      color: integer;
+  end;
+
+  TTexCoord = record
+      u, v: integer;
+  end;
+
   THobFace = record
       flags: integer;
       b1, b2, b3: byte;
       bsize: byte;
       ftype: byte; //3 - tri, 4 - quad
-      tex_index: word;
+      has_uv: boolean;
+      material_index: word;
       indices: array[0..3] of word;
+      vertex_colors: array[0..3] of TRGBA;
+      tex_coords: array[0..3] of TTexCoord;
   end;
 
   THobFaceGroup = record
@@ -55,7 +66,7 @@ function ParseHobFile(const fname: string): THobFile;
 implementation
 
 const
-  DumpFaces = false;
+  DumpFaces = true;
 
 function NameToString(name: array of byte): string;
 var
@@ -74,7 +85,6 @@ var
   face: THobFace;
   unknown: integer;
   file_pos: integer;
-  buf: array[0..255] of byte;
 begin
   unknown := f.ReadDWord;
   if (unknown <> 0) then
@@ -101,16 +111,8 @@ begin
       if (unknown <> 0) then
           writeln('unusual file: unknown');
 
-      face.tex_index := f.ReadWord;
-
-      //read vertex indices
-      for k := 0 to 3 do
-          face.indices[k] := f.ReadWord;
-
-      //read rest of the face block
-      unknown := file_pos + face.bsize - f.Position;
-      for k := 0 to unknown - 1 do
-          buf[k] := f.ReadByte;
+      //material index
+      face.material_index := f.ReadWord;
 
       //face type: quad or triangle
       if face.flags and %1000 > 0 then
@@ -118,18 +120,46 @@ begin
       else
           face.ftype := 3;
 
+      //read vertex indices
+      for k := 0 to 3 do
+          face.indices[k] := f.ReadWord;
+
+      //ext0
+      if face.flags and %1000000 > 0 then begin
+          f.ReadDWord;
+          f.ReadDWord;
+      end;
+
+      //vertex colors
+      for k := 0 to face.ftype - 1 do
+          face.vertex_colors[k].color := f.ReadDWord;
+
+      //uv coords
+      face.has_uv := face.flags and %100 > 0;
+      if face.has_uv then begin
+          for k := 0 to face.ftype - 1 do begin
+              face.tex_coords[k].u := f.ReadWord;
+              face.tex_coords[k].v := f.ReadWord;
+          end;
+      end;
+
       group.faces[i] := face;
 
       if DumpFaces then begin
           if face.ftype = 3 then write('t') else write('q');
           write(face.flags:5, face.b1:3, face.b2:3, face.b3:3, face.bsize:3);
-          write(' ti: ', face.tex_index);
-          write(' coords: ');
+          write(' mat: ', face.material_index);
+          write(' verts: ');
           for k := 0 to 3 do
               write(face.indices[k]:4);
-          write(' rest: ');
-          for k := 0 to unknown - 1 do
-              write(buf[k]:4);
+          write(' colors: ');
+          for k := 0 to face.ftype - 1 do
+              write(IntToHex(face.vertex_colors[k].color, 8), ' ');
+          if face.has_uv then begin
+          write(' uvs: ');
+              for k := 0 to face.ftype - 1 do
+                  write('(', face.tex_coords[k].u, ', ', face.tex_coords[k].v, ') ');
+          end;
           writeln;
       end;
   end;
