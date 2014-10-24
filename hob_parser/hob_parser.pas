@@ -12,7 +12,7 @@ type
   end;
 
   TTexCoord = record
-      u, v: integer;
+      u, v: smallint;
   end;
 
   THobFace = record
