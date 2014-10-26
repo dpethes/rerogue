@@ -20,7 +20,6 @@ type
       b1, b2, b3: byte;
       bsize: byte;
       ftype: byte; //3 - tri, 4 - quad
-      has_uv: boolean;
       material_index: word;
       indices: array[0..3] of word;
       vertex_colors: array[0..3] of TRGBA;
@@ -80,17 +79,24 @@ begin
 end;
 
 procedure ReadFaces(var group: THobFaceGroup; var f: TMemoryStream);
+const
+  FACE_UV      =     %100;
+  FACE_QUAD    =    %1000;
+  FACE_VCOLORS =   %10000;
+  FACE_COLOR   =  %100000;
+  FACE_EXT     = %1000000;
 var
   i, k: integer;
   face: THobFace;
-  unknown: integer;
+  zero: integer;
   file_pos: integer;
+  color: integer;
 begin
-  unknown := f.ReadDWord;
-  if (unknown <> 0) then
+  zero := f.ReadDWord;
+  if (zero <> 0) then
       writeln('unusual file: zero');
-  unknown := f.ReadDWord;
-  if (unknown <> 0) then
+  zero := f.ReadDWord;
+  if (zero <> 0) then
       writeln('unusual file: zero');
   file_pos := f.ReadDWord;
   if file_pos <> f.Position + 4 then
@@ -101,21 +107,20 @@ begin
   SetLength(group.faces, group.face_count);
   for i := 0 to group.face_count - 1 do begin
       file_pos := f.Position;
-      face.flags := f.ReadDWord;  //?
+      face.flags := f.ReadDWord;
       face.b1 := f.ReadByte;  //46/49/4B
       face.b2 := f.ReadByte;  //51/71
       face.b3 := f.ReadByte;  //0C
-      face.bsize := f.ReadByte * 4;  //block size: A = 40B, 9 = 36
-
-      unknown := f.ReadWord;
-      if (unknown <> 0) then
-          writeln('unusual file: unknown');
+      face.bsize := f.ReadByte * 4;  //block size
+      zero := f.ReadWord;
+      if (zero <> 0) then
+          writeln('unusual file: face header separator');
 
       //material index
       face.material_index := f.ReadWord;
 
       //face type: quad or triangle
-      if face.flags and %1000 > 0 then
+      if face.flags and FACE_QUAD > 0 then
           face.ftype := 4
       else
           face.ftype := 3;
@@ -125,43 +130,59 @@ begin
           face.indices[k] := f.ReadWord;
 
       //ext0
-      if face.flags and %1000000 > 0 then begin
+      if face.flags and FACE_EXT > 0 then begin
           f.ReadDWord;
           f.ReadDWord;
       end;
 
-      //vertex colors
-      for k := 0 to face.ftype - 1 do
-          face.vertex_colors[k].color := f.ReadDWord;
+      //vertex colors - either per vertex, or the same for all vertices
+      if face.flags and FACE_COLOR > 0 then begin
+          if face.flags and FACE_VCOLORS > 0 then begin
+              for k := 0 to face.ftype - 1 do
+                  face.vertex_colors[k].color := f.ReadDWord;
+          end else begin
+              color := f.ReadDWord;
+              for k := 0 to face.ftype - 1 do
+                  face.vertex_colors[k].color := color;
+          end;
+      end;
 
       //uv coords
-      face.has_uv := face.flags and %100 > 0;
-      if face.has_uv then begin
+      if face.flags and FACE_UV > 0 then begin
           for k := 0 to face.ftype - 1 do begin
               face.tex_coords[k].u := f.ReadWord;
               face.tex_coords[k].v := f.ReadWord;
           end;
       end;
 
-      group.faces[i] := face;
-
       if DumpFaces then begin
-          if face.ftype = 3 then write('t') else write('q');
-          write(face.flags:5, face.b1:3, face.b2:3, face.b3:3, face.bsize:3);
-          write(' mat: ', face.material_index);
+          if (face.flags and FACE_QUAD) = 0 then write('t') else write('q');
+          write(face.flags:5, face.b1:3, face.b2:4, face.b3:3, face.bsize:3);
+          write(' mt: ', face.material_index);
           write(' verts: ');
-          for k := 0 to 3 do
+          for k := 0 to face.ftype - 1 do
               write(face.indices[k]:4);
           write(' colors: ');
           for k := 0 to face.ftype - 1 do
               write(IntToHex(face.vertex_colors[k].color, 8), ' ');
-          if face.has_uv then begin
-          write(' uvs: ');
+          if (face.flags and FACE_UV) > 0 then begin
+              write(' uvs: ');
               for k := 0 to face.ftype - 1 do
                   write('(', face.tex_coords[k].u, ', ', face.tex_coords[k].v, ') ');
           end;
-          writeln;
       end;
+
+      //hack for awing.hob
+      if f.Position <> (file_pos + face.bsize) then begin
+          write(' rest:');
+          for k := f.Position to file_pos + face.bsize - 1 do
+              write(IntToHex(f.ReadByte, 2):3);
+      end;
+
+      if DumpFaces then
+          writeln;
+
+      group.faces[i] := face;
   end;
 end;
 
@@ -243,6 +264,7 @@ begin
   for i := 0 to mesh.face_group_count - 1 do begin
       ReadFaceGroup(mesh.face_groups[i], f);
   end;
+  writeln;
 end;
 
 

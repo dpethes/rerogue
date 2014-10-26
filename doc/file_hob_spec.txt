@@ -70,25 +70,36 @@ NOF * face block
   FC * face
   {
     4B int face flags
-        - if bit 3 is set, the face is a quad, otherwise triangle
-        - if bit 2 is set, face has texture coordinates (uv-s)
+        - bits 0, 1 unknown
+        - if bit 2 is set, face has texture coordinates (uv-s)    
+        - if bit 3 is set, the face is a quad, otherwise it's a triangle
+        - if bit 4 is set, face has separate colors for each vertex
+        - if bit 5 is set, face has color
         - if bit 6 is set, face has extra 8 bytes before vertex colors
-    1B int 46/49/4B
-    1B int 51/71
-    1B int 0C
-    1B int block size / 4: A = 40B, 9 = 36, etc.
-    2B int zero?
-    2B int material index?
+        - bits 7-10 unknown. higher bits don't seem to be set
+    1B int ? 46/49/4B
+    1B int ? 51/71
+    1B int ? 0C
+    1B int face block size divided by 4
+        - A = 40B, 9 = 36, etc.
+    2B int zero
+    2B int material index
     4x 2B vertex indices, relative to the face group. The last index is zero in triangle faces 
     if (face has extra 8 bytes) {
-      8B extra bytes
+        8B extra bytes
     }
-    3/4 * 4B RGBA vertex color
+    if (face has color) {
+        if (face has vertex colors) {
+            3/4 * 4B RGBA vertex color
+        } else {    
+            4B RGBA color
+        }
+    }
     if (face has texture coordinates) {
-      3/4 * {
-        2B int u
-        2B int v
-      }
+        3/4 * {
+            2B int horizontal texture coord
+            2B int vertical texture coord
+        }
     }
   }
 }
