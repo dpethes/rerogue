@@ -211,7 +211,7 @@ begin
   //read group/meshdef0
   f.Seek(16, fsFromCurrent);  //unknown
   fg.meshdef1_offset := f.ReadDWord;
-  writeln('fg meshdef offset:', fg.meshdef1_offset);
+  writeln('fg meshdef1 offset:', fg.meshdef1_offset);
 
   if fg.meshdef1_offset > 0 then begin
       //read meshdef1
@@ -233,14 +233,14 @@ begin
       f.Seek(fg.vertex_block_offset, fsFromBeginning);
       ReadVertices(fg, f, fg.vertex_count);
   end;
-
-  f.Seek(filepos + 132, fsFromBeginning);
 end;
 
 
 procedure ReadObject(var mesh: THobObject; var f: TMemoryStream);
 var
   i: integer;
+  fg_offsets: array of integer;
+  unknown: integer;
 begin
   f.ReadBuffer(mesh.name, 16);
   mesh.face_group_offset := f.ReadDWord;
@@ -258,10 +258,17 @@ begin
       writeln('facegroup counts don''t match!: ', mesh.face_group_count, mesh.face_group_count0:5);
   end;
 
+  SetLength(fg_offsets, mesh.face_group_count);
+  for i := 0 to mesh.face_group_count - 1 do begin
+      unknown := f.ReadDWord;
+      fg_offsets[i] := f.ReadDWord;
+  end;
+
   //read face group defs
   SetLength(mesh.face_groups, mesh.face_group_count);
-  f.Seek(mesh.face_group_offset, fsFromBeginning);
   for i := 0 to mesh.face_group_count - 1 do begin
+      writeln('fg meshdef0 offset: ', fg_offsets[i], IntToHex(fg_offsets[i], 8):9);
+      f.Seek(fg_offsets[i], fsFromBeginning);
       ReadFaceGroup(mesh.face_groups[i], f);
   end;
   writeln;
