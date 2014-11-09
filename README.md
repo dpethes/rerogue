@@ -8,6 +8,7 @@ Tools to extract data from Star Wars: Rogue Squadron 3D.
 * Image exporter - exports some images to pnm/pgm/tga files (according to their internal format).
 * HOB parser - parses mesh data files.
 * HMT parser - parses material data files and exports stored textures.
+* HMT compiler - builds custom material data files.
 * HOB display - utilizes HOB & HMT parsers to view 3d objects used in game. Uses OpenGL and SDL for display & input handling.
 
 Compilation
@@ -20,6 +21,7 @@ TODO
 -----------
 
 * hmt parser: decode all image subtypes
+* hmt compiler: needs some usable interface
 * hob parser: parse more header fields
 * mesh viewer: reuse hmt & hob parsers to display data
 * bundle repack: extract & compile bundle.00x archives

@@ -9,7 +9,8 @@ uses
 
 type
   THmtMaterial = record
-      type1, type2: shortint;
+      type_: shortint;
+      tex_index: shortint;
       unknown_float1, unknown_float2: single;
       zero: integer;
       hex_a: integer;
@@ -118,8 +119,8 @@ end;
 
 procedure ReadMaterial(var mat: THmtMaterial; var f: TMemoryStream);
 begin
-  mat.type1 := f.ReadWord;
-  mat.type2 := f.ReadWord;
+  mat.type_ := f.ReadWord;
+  mat.tex_index := f.ReadWord;
   mat.unknown_float1 := f.ReadDWord;
   mat.unknown_float2 := f.ReadDWord;
   mat.zero := f.ReadDWord;
@@ -129,6 +130,8 @@ begin
   writeln(NameToString(mat.name));
   if (mat.zero <> 0) or (mat.hex_a <> $A) then
       writeln('unusual file');
+  writeln(' type1: ', mat.type_);
+  writeln(' type2: ', mat.tex_index);
 end;
 
 
