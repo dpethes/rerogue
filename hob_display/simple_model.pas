@@ -87,8 +87,9 @@ begin
           v.y := FixRange(fg.vertices[i].y);
           v.z := FixRange(fg.vertices[i].z);
           //flip Y for OpenGL coord system, otherwise the model is upside down.
-          //Causes flipping of the texture too, compared to what the game shows
+          //Flip x coord too, otherwise the model looks mirrored
           v.y := -v.y;
+          v.x := -v.x;
           _vertices.Add(v);
           group_vertices.Add(v);
       end;
