@@ -65,7 +65,7 @@ function ParseHobFile(const fname: string): THobFile;
 implementation
 
 const
-  DumpFaces = false;
+  DumpFaces = true;
 
 function NameToString(name: array of byte): string;
 var
@@ -88,15 +88,15 @@ const
 var
   i, k: integer;
   face: THobFace;
-  unknown: integer;
+  zero: integer;
   file_pos: integer;
   color: integer;
 begin
-  unknown := f.ReadDWord;
-  if (unknown <> 0) then
+  zero := f.ReadDWord;
+  if (zero <> 0) then
       writeln('unusual file: zero');
-  unknown := f.ReadDWord;
-  if (unknown <> 0) then
+  zero := f.ReadDWord;
+  if (zero <> 0) then
       writeln('unusual file: zero');
   file_pos := f.ReadDWord;
   if file_pos <> f.Position + 4 then
@@ -107,14 +107,13 @@ begin
   SetLength(group.faces, group.face_count);
   for i := 0 to group.face_count - 1 do begin
       file_pos := f.Position;
-      face.flags := f.ReadDWord;  //?
+      face.flags := f.ReadDWord;
       face.b1 := f.ReadByte;  //46/49/4B
       face.b2 := f.ReadByte;  //51/71
       face.b3 := f.ReadByte;  //0C
-      face.bsize := f.ReadByte * 4;  //block size: A = 40B, 9 = 36
-
-      unknown := f.ReadWord;
-      if (unknown <> 0) then
+      face.bsize := f.ReadByte * 4;  //block size
+      zero := f.ReadWord;
+      if (zero <> 0) then
           writeln('unusual file: face header separator');
 
       //material index
@@ -212,7 +211,7 @@ begin
   //read group/meshdef0
   f.Seek(16, fsFromCurrent);  //unknown
   fg.meshdef1_offset := f.ReadDWord;
-  writeln('fg meshdef offset:', fg.meshdef1_offset);
+  writeln('fg meshdef1 offset:', fg.meshdef1_offset);
 
   if fg.meshdef1_offset > 0 then begin
       //read meshdef1
@@ -234,14 +233,14 @@ begin
       f.Seek(fg.vertex_block_offset, fsFromBeginning);
       ReadVertices(fg, f, fg.vertex_count);
   end;
-
-  f.Seek(filepos + 132, fsFromBeginning);
 end;
 
 
 procedure ReadObject(var mesh: THobObject; var f: TMemoryStream);
 var
   i: integer;
+  fg_offsets: array of integer;
+  unknown: integer;
 begin
   f.ReadBuffer(mesh.name, 16);
   mesh.face_group_offset := f.ReadDWord;
@@ -259,10 +258,17 @@ begin
       writeln('facegroup counts don''t match!: ', mesh.face_group_count, mesh.face_group_count0:5);
   end;
 
+  SetLength(fg_offsets, mesh.face_group_count);
+  for i := 0 to mesh.face_group_count - 1 do begin
+      unknown := f.ReadDWord;
+      fg_offsets[i] := f.ReadDWord;
+  end;
+
   //read face group defs
   SetLength(mesh.face_groups, mesh.face_group_count);
-  f.Seek(mesh.face_group_offset, fsFromBeginning);
   for i := 0 to mesh.face_group_count - 1 do begin
+      writeln('fg meshdef0 offset: ', fg_offsets[i], IntToHex(fg_offsets[i], 8):9);
+      f.Seek(fg_offsets[i], fsFromBeginning);
       ReadFaceGroup(mesh.face_groups[i], f);
   end;
   writeln;
