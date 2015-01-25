@@ -1,0 +1,5 @@
+[package]
+
+name = "bundle_pack"
+version = "0.0.1"
+authors = ["dpethes <dejvu@email.cz>"]
