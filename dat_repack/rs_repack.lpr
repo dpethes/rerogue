@@ -6,10 +6,18 @@ uses
 procedure UnpackData(const basedir: string);
 var
   dat: TRSDatFile;
+  fhdr, fdat: string;
 begin
+  fhdr := basedir + 'DATA.HDR';
+  fdat := basedir + 'DATA.DAT';
+  if not FileExists(fhdr) or not FileExists(fdat) then begin
+      writeln('missing input files ', fhdr, ' or ', fdat);
+      exit;
+  end;
+
   dat := TRSDatFile.Create;
-  dat.ReadHeader(basedir + 'DATA.HDR');
-  dat.ReadSections(basedir + 'DATA.DAT');
+  dat.ReadHeader(fhdr);
+  dat.ReadSections(fdat);
   dat.WriteFilesToDirectory(basedir);
   dat.Free;
 end;
@@ -29,6 +37,8 @@ var
 begin
   if Paramcount < 2 then begin
       writeln ('usage: rs_repack [u|p] directory');
+      writeln ('u - unpack hdr&dat in directory');
+      writeln ('p - pack directories into hdr&dat');
       halt;
   end;
   mode := ParamStr(1);

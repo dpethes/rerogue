@@ -35,7 +35,6 @@ procedure SaveFile(const name: string; const buffer: pbyte; const buf_size: inte
 var
   f: file;
   fname: string;
-  dups: integer;
 begin
   fname := name;
   AssignFile(f, fname);
