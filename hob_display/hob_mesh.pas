@@ -12,11 +12,11 @@ type
     x, y, z: single;
   end;
 
-  TQuad = record
-    vertices: array [0..3] of TVertex;
+  TTriangle = record
+    vertices: array [0..2] of TVertex;
     material_index: integer;
-    tex_coords: array [0..3, 0..1] of single;
-    colors: array[0..3] of TRGBA;
+    tex_coords: array [0..2, 0..1] of single;
+    colors: array[0..2] of TRGBA;
   end;
 
   TMaterial = record
@@ -28,7 +28,7 @@ type
   end;
 
   TVertexList = specialize TGenericStructList<TVertex>;
-  TPolyList = specialize TGenericStructList<TQuad>;
+  TTriangleList = specialize TGenericStructList<TTriangle>;
   TMaterialArray = array of TMaterial;
 
   TRenderOpts = record
@@ -45,8 +45,7 @@ type
   TModel = class
     private
       _vertices: TVertexList;
-      _triangles: TPolyList;
-      _quads: TPolyList;
+      _triangles: TTriangleList;
       _materials: array of TMaterial;
       _hmt: THmtFile;
       _hmt_loaded: boolean;
@@ -56,10 +55,6 @@ type
     public
       destructor Destroy; override;
       procedure Load(const hob_filename, hmt_filename: string);
-      function GetTriangles: TPolyList;
-      function GetQuads: TPolyList;
-      function GetVertices: TVertexList;
-      function GetMaterials: TMaterialArray;
       procedure InitGL;
       procedure DrawGL(opts: TRenderOpts);
   end;
@@ -83,13 +78,30 @@ begin
 end;
 
 
+{ rearrange HOB data, triangulate quads
+}
 procedure TModel.HobReadMesh(const mesh: THobObject);
 var
-  i, k, idx: Integer;
+  i: Integer;
   fg: THobFaceGroup;
   v: TVertex;
   group_vertices: TVertexList;
-  quad: TQuad;
+  triangle: TTriangle;
+
+  function InitVertex(face: THobFace; offset: integer): TTriangle;
+  var
+    i, k: Integer;
+  begin
+    for i := 0 to 2 do begin
+        k := (i + offset) and $3;
+        result.vertices[i] := group_vertices[face.indices[k]];
+        result.colors[i]   := face.vertex_colors[k];
+        result.tex_coords[i, 0] := FixUvRange(face.tex_coords[k].u);
+        result.tex_coords[i, 1] := FixUvRange(face.tex_coords[k].v);
+    end;
+    result.material_index := face.material_index;
+  end;
+
 begin
   group_vertices := TVertexList.Create;
   for fg in mesh.face_groups do begin
@@ -104,21 +116,13 @@ begin
           _vertices.Add(v);
           group_vertices.Add(v);
       end;
-
       for i := 0 to fg.face_count - 1 do begin
-          for k := 0 to fg.faces[i].ftype - 1 do begin
-              idx := fg.faces[i].indices[k];
-              quad.vertices[k] := group_vertices[idx];
-              quad.colors[k] := fg.faces[i].vertex_colors[k];
-
-              quad.material_index := fg.faces[i].material_index;
-              quad.tex_coords[k, 0] := FixUvRange(fg.faces[i].tex_coords[k].u);
-              quad.tex_coords[k, 1] := FixUvRange(fg.faces[i].tex_coords[k].v);
+          triangle := InitVertex(fg.faces[i], 0);
+          _triangles.Add(triangle);
+          if fg.faces[i].ftype <> 3 then begin
+              triangle := InitVertex(fg.faces[i], 2);
+              _triangles.Add(triangle);
           end;
-          if fg.faces[i].ftype = 3 then
-              _triangles.Add(quad)
-          else
-              _quads.Add(quad);
       end;
       group_vertices.Clear;
   end;
@@ -135,7 +139,7 @@ begin
   for i := 0 to hob.obj_count - 1 do
       HobReadMesh(hob.objects[i]);
   WriteLn('vertices: ', _vertices.Count);
-  WriteLn('faces (tri/quad): ', _triangles.Count + _quads.Count, _triangles.Count:6, _quads.Count:6);
+  WriteLn('faces (triangulated): ', _triangles.Count);
 end;
 
 
@@ -184,8 +188,7 @@ end;
 procedure TModel.Load(const hob_filename, hmt_filename: string);
 begin
   _vertices := TVertexList.Create;
-  _triangles := TPolyList.Create;
-  _quads := TPolyList.Create;
+  _triangles := TTriangleList.Create;
   WriteLn('Loading mesh file ', hob_filename);
   HobRead(hob_filename);
   if FileExists(hmt_filename) then begin
@@ -195,26 +198,6 @@ begin
   end else begin
       _hmt_loaded := false;
   end;
-end;
-
-function TModel.GetTriangles: TPolyList;
-begin
-  result := _triangles;
-end;
-
-function TModel.GetQuads: TPolyList;
-begin
-  result := _quads;
-end;
-
-function TModel.GetVertices: TVertexList;
-begin
-  result := _vertices;
-end;
-
-function TModel.GetMaterials: TMaterialArray;
-begin
-  result := _materials;
 end;
 
 procedure pnm_save(const fname: string; const p: pbyte; const w, h: integer);
@@ -281,36 +264,29 @@ end;
 
 procedure TModel.DrawGL(opts: TRenderOpts);
 var
-  verts: TVertexList;
   vert: TVertex;
-  polygons: TPolyList;
   i: integer;
-  mats: array of TMaterial;
 
-  procedure DrawPoly(quad: TQuad; elements: integer);
+  procedure DrawTri(tri: TTriangle);
   var
     mat: TMaterial;
     k: Integer;
   begin
     if _hmt_loaded then begin
-        mat := mats[quad.material_index];
+        mat := _materials[tri.material_index];
         if mat.has_texture then begin
             glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, mat.gl_tex_id);
         end else
             glDisable(GL_TEXTURE_2D);
     end;
-
-    if elements = 3 then
-        glBegin( GL_TRIANGLES )
-    else
-        glBegin( GL_QUADS );
-    for k := 0 to elements - 1 do begin
+    glBegin(GL_TRIANGLES);
+    for k := 0 to 2 do begin
         if opts.vcolors then
-            glColor4ubv(@quad.colors[k]);
+            glColor4ubv(@tri.colors[k]);
         if opts.textures then
-            glTexCoord2fv(@quad.tex_coords[k, 0]);
-        glVertex3fv(@quad.vertices[k]);
+            glTexCoord2fv(@tri.tex_coords[k, 0]);
+        glVertex3fv(@tri.vertices[k]);
     end;
     glEnd;
   end;
@@ -323,26 +299,18 @@ begin
 
   glDisable(GL_TEXTURE_2D);
   if opts.points then begin
-      verts := GetVertices;
       glBegin( GL_POINTS );
       glColor3f(0, 1, 0);
-      for i := 0 to verts.Count - 1 do begin
-          vert := verts[i];
+      for i := 0 to _vertices.Count - 1 do begin
+          vert := _vertices[i];
           glVertex3fv(@vert);
       end;
       glEnd;
   end;
 
   glColor3f(1, 1, 1);
-  mats := GetMaterials;
-
-  polygons := GetTriangles;
-  for i := 0 to polygons.Count - 1 do
-      DrawPoly(polygons[i], 3);
-
-  polygons := GetQuads;
-  for i := 0 to polygons.Count - 1 do
-      DrawPoly(polygons[i], 4);
+  for i := 0 to _triangles.Count - 1 do
+      DrawTri(_triangles[i]);
 end;
 
 end.
