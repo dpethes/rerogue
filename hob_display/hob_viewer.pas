@@ -22,7 +22,7 @@ program hob_viewer;
 uses
   sysutils,
   gl, glu, glext, sdl,
-  simple_model, GenericStructList, hob_parser, hmt_parser, rs_image;
+  hob_mesh, GenericStructList, hob_parser, hmt_parser, rs_image;
 
 const
   SCR_W_fscrn = 1024;
@@ -46,12 +46,9 @@ var
       rotation_angle: single;
       distance: single;
       pitch: single;
-      wireframe: boolean;
-      points: boolean;
-      vcolors: boolean;
-      textures: boolean;
-      autorotate: boolean;
       x, y: single;
+      autorotate: boolean;
+      opts: TRenderOpts;
   end;
 
   key_pressed: record
@@ -117,65 +114,6 @@ begin
   glLoadIdentity;                // Reset The View
 end;
 
-procedure DrawModel;
-var
-  verts: TVertexList;
-  vert: TVertex;
-  polygons: TPolyList;
-  i: integer;
-  mats: array of TMaterial;
-
-  procedure DrawPoly(quad: TQuad; elements: integer);
-  var
-    mat: TMaterial;
-    k: Integer;
-  begin
-    mat := mats[quad.material_index];
-    if mat.has_texture then begin
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, mat.gl_tex_id);
-    end else
-        glDisable(GL_TEXTURE_2D);
-
-    if elements = 3 then
-        glBegin( GL_TRIANGLES )
-    else
-        glBegin( GL_QUADS );
-    for k := 0 to elements - 1 do begin
-        if view.vcolors then
-            glColor4ubv(@quad.colors[k]);
-        if view.textures then
-            glTexCoord2fv(@quad.tex_coords[k, 0]);
-        glVertex3fv(@quad.vertices[k]);
-    end;
-    glEnd;
-  end;
-
-begin
-  glDisable(GL_TEXTURE_2D);
-  if view.points then begin
-      verts := model.GetVertices;
-      glBegin( GL_POINTS );
-      glColor3f(0, 1, 0);
-      for i := 0 to verts.Count - 1 do begin
-          vert := verts[i];
-          glVertex3fv(@vert);
-      end;
-      glEnd;
-  end;
-
-  glColor3f(1, 1, 1);
-  mats := model.GetMaterials;
-
-  polygons := model.GetTriangles;
-  for i := 0 to polygons.Count - 1 do
-      DrawPoly(polygons[i], 3);
-
-  polygons := model.GetQuads;
-  for i := 0 to polygons.Count - 1 do
-      DrawPoly(polygons[i], 4);
-end;
-
 
 // The main drawing function.
 procedure DrawGLScene;
@@ -195,16 +133,10 @@ begin
   if view.rotation_angle > 360 then
       view.rotation_angle -= 360;
 
-  if view.wireframe then
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-  else
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-  DrawModel;
+  model.DrawGL(view.opts);
   
   SDL_GL_SwapBuffers;
 end;
-
 
 
 procedure SetMode(w, h: word; fullscreen: boolean = false);
@@ -220,6 +152,7 @@ begin
       ReportError('SDL_SetVideoMode failed');
   SDL_WM_SetCaption('HOB viewer', nil);
 end;
+
 
 procedure WindowScreenshot(const width, height : integer);
 const
@@ -247,6 +180,7 @@ begin
   Freemem(buf);
 end;
 
+
 procedure InitView;
 begin
   view.rotation_angle := 0;
@@ -254,11 +188,11 @@ begin
   view.pitch := 0;
   view.x := 0;
   view.y := 0;
-  view.wireframe := false;
-  view.points := false;
   view.autorotate := true;
-  view.vcolors := true;
-  view.textures := true;
+  view.opts.wireframe := false;
+  view.opts.points := false;
+  view.opts.vcolors := true;
+  view.opts.textures := true;
 end;
 
 
@@ -300,30 +234,32 @@ begin
                  view.distance += ZoomIncrement;
              SDLK_PAGEDOWN:
                  view.distance -= ZoomIncrement;
-             SDLK_w:
-                 if not key_pressed.wireframe then begin
-                     view.wireframe := not view.wireframe;
-                     key_pressed.wireframe := true;
-                 end;
-             SDLK_v:
-                 if not key_pressed.vcolors then begin
-                     view.vcolors := not view.vcolors;
-                     key_pressed.vcolors := true;
-                 end;
-             SDLK_p:
-                 if not key_pressed.points then begin
-                     view.points := not view.points;
-                     key_pressed.points := true;
-                 end;
-             SDLK_t:
-                 if not key_pressed.textures then begin
-                     view.textures := not view.textures;
-                     key_pressed.textures := true;
-                 end;
              SDLK_r:
                  if not key_pressed.autorotate then begin
                      view.autorotate := not view.autorotate;
                      key_pressed.autorotate := true;
+                 end;
+
+             //model rendering opts
+             SDLK_w:
+                 if not key_pressed.wireframe then begin
+                     view.opts.wireframe := not view.opts.wireframe;
+                     key_pressed.wireframe := true;
+                 end;
+             SDLK_v:
+                 if not key_pressed.vcolors then begin
+                     view.opts.vcolors := not view.opts.vcolors;
+                     key_pressed.vcolors := true;
+                 end;
+             SDLK_p:
+                 if not key_pressed.points then begin
+                     view.opts.points := not view.opts.points;
+                     key_pressed.points := true;
+                 end;
+             SDLK_t:
+                 if not key_pressed.textures then begin
+                     view.opts.textures := not view.opts.textures;
+                     key_pressed.textures := true;
                  end;
            end;
 
@@ -385,7 +321,7 @@ begin
                end;
            end;
        end;
-   end;
+   end; {case}
 end;
 
 //******************************************************************************
@@ -422,8 +358,6 @@ begin
   key_pressed.fullscreen := false;
   while not Done do begin
       HandleEvent;
-
-      // draw the scene
       DrawGLScene;
       frames += 1;
       if (SDL_GetTicks - sec) >= 1000 then begin

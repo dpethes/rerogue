@@ -1,4 +1,4 @@
-unit simple_model;
+unit hob_mesh;
 {$mode objfpc}{$H+}
 
 interface
@@ -31,7 +31,16 @@ type
   TPolyList = specialize TGenericStructList<TQuad>;
   TMaterialArray = array of TMaterial;
 
-  { TModel }
+  TRenderOpts = record
+      wireframe: boolean;
+      points: boolean;
+      vcolors: boolean;
+      textures: boolean;
+  end;
+
+  { TModel
+    single HOB mesh
+  }
 
   TModel = class
     private
@@ -40,6 +49,7 @@ type
       _quads: TPolyList;
       _materials: array of TMaterial;
       _hmt: THmtFile;
+      _hmt_loaded: boolean;
       procedure HmtRead(const filename: string);
       procedure HobRead(const filename: string);
       procedure HobReadMesh(const mesh: THobObject);
@@ -51,6 +61,7 @@ type
       function GetVertices: TVertexList;
       function GetMaterials: TMaterialArray;
       procedure InitGL;
+      procedure DrawGL(opts: TRenderOpts);
   end;
 
 implementation
@@ -177,8 +188,13 @@ begin
   _quads := TPolyList.Create;
   WriteLn('Loading mesh file ', hob_filename);
   HobRead(hob_filename);
-  WriteLn('Loading material file ', hmt_filename);
-  HmtRead(hmt_filename);
+  if FileExists(hmt_filename) then begin
+      WriteLn('Loading material file ', hmt_filename);
+      HmtRead(hmt_filename);
+      _hmt_loaded := true;
+  end else begin
+      _hmt_loaded := false;
+  end;
 end;
 
 function TModel.GetTriangles: TPolyList;
@@ -254,10 +270,79 @@ procedure TModel.InitGL;
 var
   i: integer;
 begin
+  if not _hmt_loaded then
+      exit;
   for i := 0 to _hmt.material_count - 1 do begin
       if _materials[i].has_texture then
           GenTexture(_materials[i]);
   end;
+end;
+
+
+procedure TModel.DrawGL(opts: TRenderOpts);
+var
+  verts: TVertexList;
+  vert: TVertex;
+  polygons: TPolyList;
+  i: integer;
+  mats: array of TMaterial;
+
+  procedure DrawPoly(quad: TQuad; elements: integer);
+  var
+    mat: TMaterial;
+    k: Integer;
+  begin
+    if _hmt_loaded then begin
+        mat := mats[quad.material_index];
+        if mat.has_texture then begin
+            glEnable(GL_TEXTURE_2D);
+            glBindTexture(GL_TEXTURE_2D, mat.gl_tex_id);
+        end else
+            glDisable(GL_TEXTURE_2D);
+    end;
+
+    if elements = 3 then
+        glBegin( GL_TRIANGLES )
+    else
+        glBegin( GL_QUADS );
+    for k := 0 to elements - 1 do begin
+        if opts.vcolors then
+            glColor4ubv(@quad.colors[k]);
+        if opts.textures then
+            glTexCoord2fv(@quad.tex_coords[k, 0]);
+        glVertex3fv(@quad.vertices[k]);
+    end;
+    glEnd;
+  end;
+
+begin
+  if opts.wireframe then
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+  else
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+  glDisable(GL_TEXTURE_2D);
+  if opts.points then begin
+      verts := GetVertices;
+      glBegin( GL_POINTS );
+      glColor3f(0, 1, 0);
+      for i := 0 to verts.Count - 1 do begin
+          vert := verts[i];
+          glVertex3fv(@vert);
+      end;
+      glEnd;
+  end;
+
+  glColor3f(1, 1, 1);
+  mats := GetMaterials;
+
+  polygons := GetTriangles;
+  for i := 0 to polygons.Count - 1 do
+      DrawPoly(polygons[i], 3);
+
+  polygons := GetQuads;
+  for i := 0 to polygons.Count - 1 do
+      DrawPoly(polygons[i], 4);
 end;
 
 end.

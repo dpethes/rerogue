@@ -44,9 +44,9 @@
         <UnitName Value="hob_viewer"/>
       </Unit0>
       <Unit1>
-        <Filename Value="simple_model.pas"/>
+        <Filename Value="hob_mesh.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="simple_model"/>
+        <UnitName Value="hob_mesh"/>
       </Unit1>
       <Unit2>
         <Filename Value="hob_parser.pas"/>
@@ -61,7 +61,6 @@
       <Unit4>
         <Filename Value="rs_image.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="rs_image"/>
       </Unit4>
     </Units>
   </ProjectOptions>
@@ -76,9 +75,6 @@
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Other>
-      <CompilerMessages>
-        <MsgFileName Value=""/>
-      </CompilerMessages>
       <CompilerPath Value="$(CompPath)"/>
     </Other>
   </CompilerOptions>
