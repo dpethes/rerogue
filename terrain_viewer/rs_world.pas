@@ -228,9 +228,14 @@ begin
 end;
 
 procedure TWorld.LoadFromFiles(const hmp, tex, texmap: string);
+var
+  i: Integer;
 begin
   LoadHeightmap(hmp);
   LoadTextures(tex, texmap);
+  for i := 0 to heightmap.tile_count - 1 do begin
+      heightmap.tiles[i].texture_index := heightmap.texture_index_map[heightmap.tiles[i].texture_index];
+  end;
 end;
 
 constructor TWorld.Create;

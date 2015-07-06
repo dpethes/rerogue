@@ -200,7 +200,7 @@ begin
   view.pitch := 0;
   view.x := 0;
   view.y := 0;
-  view.autorotate := true;
+  view.autorotate := false;
   view.opts.wireframe := false;
   view.opts.points := false;
   view.opts.vcolors := true;
