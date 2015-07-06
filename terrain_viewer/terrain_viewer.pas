@@ -338,7 +338,7 @@ var
 
 begin
   if Paramcount < 1 then begin
-      writeln('specify HOB file');
+      writeln('specify HMP file');
       exit;
   end;
   in_file := ParamStr(1);

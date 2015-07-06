@@ -20,9 +20,9 @@ type
   TTile = packed record
       texture_index: word;
       unknown_attrib: byte;
-      unknown_lo: byte;
-      unknown_hi: byte;
-      unknown: array[0..24] of byte;
+      height_lo: byte;
+      height_hi: byte;
+      heights: array[0..24] of byte;
   end;
   PTile = ^TTile;
 
@@ -52,10 +52,6 @@ type
 
       procedure LoadTextures(const tex_fname, texidx_fname: string);
       procedure LoadHeightmap(fname: string);
-      procedure GenerateCompositeTexture;
-      procedure HeightmapToTexture;
-      procedure GenerateVertices;
-      procedure WriteToObj(const objFname: string);
 
     public
       heightmap: THeightmap;
@@ -66,12 +62,12 @@ type
       property TileHeight: word read heightmap.height;
 
       procedure LoadFromFiles(const hmp, tex, texmap: string);
-      procedure ExportToObj(const objfname: string);
 
       constructor Create;
       destructor Destroy; override;
   end;
 
+procedure pnm_save(const fname: string; const p: pbyte; const w, h: integer);
 
 //**************************************************************************************************
 implementation
@@ -102,7 +98,7 @@ Begin
   CloseFile (f);
 end;
 
-procedure convert_4bit_to_32bit(const indices: PByte; const w, h: Word; const image: PByte; const pal: TPalette_4bit);
+procedure convert_4bit_to_24bit(const indices: PByte; const w, h: Word; const image: PByte; const pal: TPalette_4bit);
 var
   i: Integer;
   index: integer;
@@ -173,7 +169,7 @@ begin
       image := getmem(TEX_WIDTH * TEX_HEIGHT * 3);
       Blockread(f, buf^, tex_size);
       Blockread(f, palette, palette_size);
-      convert_4bit_to_32bit(buf, TEX_WIDTH, TEX_HEIGHT, image, palette);
+      convert_4bit_to_24bit(buf, TEX_WIDTH, TEX_HEIGHT, image, palette);
       heightmap.textures[i] := image;
   end;
   freemem(buf);
@@ -231,189 +227,10 @@ begin
   CloseFile(f);
 end;
 
-procedure TWorld.GenerateCompositeTexture;
-var
-  image: pbyte;
-  image_size: integer;
-  x, y, stride: integer;
-  tile_idx, texture_idx, texmap_idx: integer;
-  texture: pbyte;
-begin
-  image_size := heightmap.width * heightmap.height * TEX_WIDTH * TEX_HEIGHT * 3;
-  image := GetMem(image_size);
-  stride := heightmap.width * TEX_WIDTH * 3;
-
-  for y := 0 to heightmap.height - 1 do
-      for x := 0 to heightmap.width - 1 do begin
-          tile_idx := heightmap.blk[y * heightmap.width + x];
-
-          texmap_idx := heightmap.tiles[tile_idx].texture_index;
-          if texmap_idx > Length(heightmap.texture_index_map) - 1 then
-              texmap_idx := 0;
-
-          texture_idx := heightmap.texture_index_map[texmap_idx];
-          texture := heightmap.textures[texture_idx];
-          CopyTexToXY(image, texture, x * TEX_WIDTH, (heightmap.height - y - 1) * TEX_HEIGHT, stride);
-      end;
-
-  world_texture := image;
-  pnm_save(TEXTURE_FNAME, image, heightmap.width * TEX_WIDTH, heightmap.height * TEX_HEIGHT);
-end;
-
-procedure TWorld.HeightmapToTexture;
-const
-  TILE_WIDTH = 4;
-  SCALE = 128;
-var
-  x, y: integer;
-  tile_idx: integer;
-  i: integer;
-  image_size: integer;
-  image: pbyte;
-begin
-  image_size := heightmap.width * heightmap.height * TILE_WIDTH * TILE_WIDTH;
-  image := GetMem(image_size);
-
-  for y := 0 to heightmap.height - 1 do begin
-      for x := 0 to heightmap.width - 1  do begin
-          tile_idx := heightmap.blk[y * heightmap.width + x];
-
-          CopyTileToXY(image, @(heightmap.tiles[tile_idx].unknown),
-                              x * TILE_WIDTH, (heightmap.height - y - 1) * TILE_WIDTH, heightmap.width * TILE_WIDTH);
-      end;
-  end;
-
-  //scale
-  for i := 0 to image_size - 1 do
-      image[i] := byte(image[i] + SCALE);
-
-  height_texture := image;
-  //pgm_save('map_height.pgm', image, heightmap.width * TILE_WIDTH, heightmap.height * TILE_WIDTH);
-end;
-
-{
-  While vertical scaling is stored within file, horizontal seems to be always 0.5
-  The height values need to be centered, 128 seems to be the correct offset.
-  The generated y coords are flipped for (opengl) rendering
-}
-procedure TWorld.GenerateVertices;
-const
-  h_scale = 0.5;
-var
-  va_size: integer;
-  x, y: integer;
-  vert: TVertex3f;
-  width_half, height_half: integer;
-  i: integer;
-  v_scale: single;
-begin
-  vertex_count := heightmap.width * 4 * heightmap.height * 4;
-  va_size := vertex_count * SizeOf(TVertex3f);
-  vertex_array := getmem(va_size);
-
-  width_half  := heightmap.width * 2;
-  height_half := heightmap.height * 2;
-  v_scale := heightmap.y_scale;
-
-  for y := 0 to heightmap.height * 4 - 1 do
-      for x := 0 to heightmap.width * 4 - 1 do begin
-          vert.x := (-width_half  + x) * h_scale;
-          vert.z := (-height_half + y) * h_scale;
-          vert.u := x / (heightmap.width  * 4);
-          vert.v := y / (heightmap.height * 4);
-          i := y * heightmap.width * 4 + x;
-          vert.y := (height_texture[i] - 128) * v_scale;
-          vert.y := -vert.y;
-          vertex_array[i] := vert;
-      end;
-end;
-
-
-procedure SaveMaterialFile(const obj_fname, mtl_name, texture_fname: string);
-var
-  f: TextFile;
-begin
-  AssignFile(f, obj_fname + '.mtl');
-  Rewrite(f);
-
-  writeln(f, '# RS heightmap');
-  writeln(f, 'newmtl ', mtl_name);     //begin new material
-  writeln(f, 'map_Kd ', texture_fname);  //texture
-  writeln(f, 'Ka 1.000 1.000 1.000');  //ambient color
-  writeln(f, 'Kd 1.000 1.000 1.000');  //diffuse color
-  writeln(f, 'Ks 1.000 1.000 1.000');  //specular color
-  writeln(f, 'Ns 100.0');              //specular weight
-  writeln(f, 'illum 2');               //Color on and Ambient on, Highlight on
-
-  CloseFile(f);
-end;
-
-
-procedure TWorld.WriteToObj(const objFname: string);
-const
-  MAT_NAME = 'default';
-var
-  f: textfile;
-  i: integer;
-  v: TVertex3f;
-  x, y, stride: integer;
-  i2, i3: integer;
-  texfname: string;
-begin
-  AssignFile(f, objFname);
-  Rewrite(f);
-
-  writeln(f, '# RS heightmap');
-  writeln(f, 'mtllib ', objFname + '.mtl');
-
-  //vertices
-  for i := 0 to vertex_count - 1 do begin
-      v := vertex_array[i];
-      writeln(f, 'v ', v.x:10:6, ' ', v.y:10:6, ' ', v.z:10:6);
-  end;
-
-  //uv-s
-  for i := 0 to vertex_count - 1 do begin
-      v := vertex_array[i];
-      writeln(f, 'vt ', v.u:10:6, ' ', v.v:10:6);
-  end;
-
-  //select material
-  writeln(f, 'usemtl ' + MAT_NAME);
-
-  //faces
-  {
-    12 2
-    3 34
-  }
-  stride := heightmap.width * 4;
-  for y := 0 to heightmap.height * 4 - 2 do
-      for x := 0 to heightmap.width * 4 - 2 do begin
-          i := y * stride + x + 1;
-          i2 := i + 1;
-          i3 := i + stride;
-          writeln(f,  Format('f %d/%d %d/%d %d/%d', [i, i, i2, i2, i3, i3]));
-          i := i3 + 1;
-          writeln(f,  Format('f %d/%d %d/%d %d/%d', [i2, i2, i, i, i3, i3]));
-      end;
-
-  CloseFile(f);
-
-  SaveMaterialFile(objFname, MAT_NAME, TEXTURE_FNAME);
-end;
-
 procedure TWorld.LoadFromFiles(const hmp, tex, texmap: string);
 begin
   LoadHeightmap(hmp);
-  //LoadTextures(tex, texmap);
-end;
-
-procedure TWorld.ExportToObj(const objfname: string);
-begin
-  //GenerateCompositeTexture;
-  HeightmapToTexture;
-  GenerateVertices;
-  //WriteToObj(objfname);
+  LoadTextures(tex, texmap);
 end;
 
 constructor TWorld.Create;
