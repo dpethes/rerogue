@@ -1,25 +1,21 @@
-15B zeros
-1B ? allways 0x3f (63)
-4B ?
-4B ? allways 0x0000003f (63)
-2B tile count
-2b ?
-4B offset to tiles
-4B offset to some data?
-2B width in BLK
-2B height in BLK
-BLK 
-{
-  width * height * 2B tile indices
-}
+12B: zeros
+4B float: always 0x3f000000 (0.5)
+4B float: terrain height scale 
+4B float: always 0x3f000000
+2B int  : tile count
+2B int  : ?
+4B int  : offset to tiles
+4B int  : offset to some data?
+2B int  : width in BLK
+2B int  : height in BLK
+array[width * height] of 2B int: tile indices
 xB ?
-tiles 
+tiles
 {
-   2b texmap idx (from texture index file)
-   1b ?
-   1b lo - minimum height in tile (probably for terrain LOD?)
-   1b hi - maximum height in tile
-   25B - 5x5 heights
+    2B int: texmap idx (from texture index file)
+    1B int: ?
+    1B uint: lo - minimum height in tile (probably for terrain LOD?)
+    1B uint: hi - maximum height in tile
+    array[25] of uint8: - 5x5 heights
 }
 2B 0x0000
-   

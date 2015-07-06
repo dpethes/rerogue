@@ -10,3 +10,9 @@ syntax: glob
 *.bat
 *.hob
 *.hmt
+*.HOB
+*.HMT
+*.text
+*.tex
+*.pgm
+*.png
