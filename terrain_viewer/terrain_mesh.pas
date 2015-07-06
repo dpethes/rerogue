@@ -45,6 +45,7 @@ implementation
 procedure TTerrainMesh.TransformTiles;
 
   //basex/y - offset in vertices
+  //TODO solve flipped coords
   procedure TileToBlock(var blk: TTerrainBlock; var tile: TTile; basex, basey: integer);
   const
     h_scale = 0.5;
@@ -61,9 +62,9 @@ procedure TTerrainMesh.TransformTiles;
         for x := 0 to 4 do begin
             v.x := (-width_half  + basex + x) * h_scale;
             v.z := (-height_half + basey + y) * h_scale;
-            v.u := -x * 1/4;
-            v.v := -y * 1/4;
-            v.y := shortint(tile.heights[y+x*5]) * v_scale;  //hmm... all transforms are flipped?
+            v.v := (1 - x/4);
+            v.u := y/4;
+            v.y := shortint(tile.heights[y+x*5]) * v_scale;
             v.y := -v.y;
 
             blk.vertices[y * 5 + x] := v;
@@ -138,89 +139,61 @@ end;
 //draw vertices from each block
 procedure TTerrainMesh.DrawGL(opts: TRenderOpts);
 
-procedure RenderBlock(var blk: TTerrainBlock);
-var
-  i, x, y, stride: integer;
-  v: TVertex3f;
-begin
-  stride := 5;
-  glBindTexture(GL_TEXTURE_2D, textures_glidx[blk.texture_index]);
-        {
-  glBegin(GL_TRIANGLES);
-  //glColor3f(0, 1, 0);
-  for y := 0 to 3 do
-      for x := 0 to 3 do begin
-          //do two triangles
-          i := y * stride + x;
+  procedure RenderBlock(var blk: TTerrainBlock);
+    procedure RenderTri(i0, i1, i2:integer);
+    var
+      v: TVertex3f;
+    begin
+      v := blk.vertices[i0];
+      glTexCoord2f(v.u, v.v);
+      glVertex3fv(@v);
+      v := blk.vertices[i1];
+      glTexCoord2f(v.u, v.v);
+      glVertex3fv(@v);
+      v := blk.vertices[i2];
+      glTexCoord2f(v.u, v.v);
+      glVertex3fv(@v);
+    end;
+  var
+    i, x, y, stride: integer;
+  begin
+    stride := 5;
+    glBindTexture(GL_TEXTURE_2D, textures_glidx[blk.texture_index]);
 
-          v := blk.vertices[i + 1];
-          glVertex3fv(@v);
-          glTexCoord2f(v.u, v.v);
-          v := blk.vertices[i];
-          glVertex3fv(@v);
-          glTexCoord2f(v.u, v.v);
-          v := blk.vertices[i + stride];
-          glVertex3fv(@v);
-          glTexCoord2f(v.u, v.v);
-
-          v := blk.vertices[i + 1];
-          glVertex3fv(@v);
-          glTexCoord2f(v.u, v.v);
-          v := blk.vertices[i + stride];
-          glVertex3fv(@v);
-          glTexCoord2f(v.u, v.v);
-          v := blk.vertices[i + stride + 1];
-          glVertex3fv(@v);
-          glTexCoord2f(v.u, v.v);
-      end;
-  glEnd;
-
-    }
-  //quad from block corners
-  glBegin(GL_QUADS);
-    i := y * stride + x;
-
-    v := blk.vertices[4];
-    glVertex3fv(@v);
-    glTexCoord2f(v.u, v.v);
-    v := blk.vertices[0];
-    glVertex3fv(@v);
-    glTexCoord2f(v.u, v.v);
-    v := blk.vertices[20];
-    glVertex3fv(@v);
-    glTexCoord2f(v.u, v.v);
-    v := blk.vertices[24];
-    glVertex3fv(@v);
-    glTexCoord2f(v.u, v.v);
-  glEnd;
-
-end;
+    glBegin(GL_TRIANGLES);
+    //glColor3f(0, 1, 0);
+    for y := 0 to 3 do
+        for x := 0 to 3 do begin
+            //do two triangles
+            i := y * stride + x;
+            RenderTri(i+1, i, i+stride);
+            RenderTri(i+1, i+stride, i+stride+1);
+        end;
+    glEnd;
+  { //only 2 tris per block
+    glBegin(GL_TRIANGLES);
+      i := y * stride + x;
+      RenderTri(0, 4, 24);
+      RenderTri(24, 20, 0);
+    glEnd;
+  }
+  end;
 
 var
   i, x, y, stride: integer;
   blk: TTerrainBlock;
   v: TVertex3f;
 begin
-  if opts.points then begin
-      glBegin(GL_POINTS);
-      glColor3f(0, 1, 0);
-      for i := 0 to terrain.vertex_count - 1 do begin
-          v := terrain.vertex_array[i];
-          glVertex3fv(@v);
+  if opts.wireframe then
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+  else
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  glEnable(GL_TEXTURE_2D);
+  for y := 0 to terrain.TileHeight - 1 do
+      for x := 0 to terrain.TileWidth - 1 do begin
+          blk := blocks[y, x];
+          RenderBlock(blk);
       end;
-      glEnd;
-  end else begin
-      if opts.wireframe then
-          glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-      else
-          glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      glEnable(GL_TEXTURE_2D);
-      for y := 0 to terrain.TileHeight - 1 do
-          for x := 0 to terrain.TileWidth - 1 do begin
-              blk := blocks[y, x];
-              RenderBlock(blk);
-          end;
-  end;
 end;
 
 end.
