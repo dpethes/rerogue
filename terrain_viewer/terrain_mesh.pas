@@ -136,15 +136,45 @@ begin
       GenTexture(i);
 end;
 
+
+//cross product + normalize
+function GetNormalv(const v0, v1, v2: TVertex3f): TVertex3f;
+var
+  a, b: TVertex3f;
+  len: single;
+begin
+  a.x := v0.x - v1.x;
+  a.y := v0.y - v1.y;
+  a.z := v0.z - v1.z;
+
+  b.x := v1.x - v2.x;
+  b.y := v1.y - v2.y;
+  b.z := v1.z - v2.z;
+
+  result.x := (a.y * b.z) - (a.z * b.y);
+  result.y := (a.z * b.x) - (a.x * b.z);
+  result.z := (a.x * b.y) - (a.y * b.x);
+
+  len := sqrt( sqr(result.x) + sqr(result.y) + sqr(result.z) );
+  if len = 0 then len := 1;
+
+  result.x /= len;
+  result.y /= len;
+  result.z /= len;
+end;
+
+
 //draw vertices from each block
 procedure TTerrainMesh.DrawGL(opts: TRenderOpts);
 
   procedure RenderBlock(var blk: TTerrainBlock);
     procedure RenderTri(i0, i1, i2:integer);
     var
-      v: TVertex3f;
+      v, n: TVertex3f;
     begin
+      n := GetNormalv(blk.vertices[i0], blk.vertices[i1], blk.vertices[i2]);
       v := blk.vertices[i0];
+      glNormal3f(n.x, n.y, n.z);
       glTexCoord2f(v.u, v.v);
       glVertex3fv(@v);
       v := blk.vertices[i1];

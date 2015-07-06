@@ -78,6 +78,10 @@ end;
 
 // initial parameters
 procedure InitGL;
+const
+  LightAmbient: array[0..3] of single = (0.5, 0.5, 0.5, 1);
+  LightDiffuse: array[0..3] of single = (1, 1, 1, 1);
+  LightPosition: array[0..3] of single = (1, 1, 0, 1);
 var
   ogl_info: string;
 begin
@@ -86,7 +90,7 @@ begin
   ogl_info := 'version: ' + glGetString(GL_VERSION);
   writeln(ogl_info);
 
-  //glShadeModel( GL_SMOOTH );                  // Enable smooth shading
+  glShadeModel( GL_SMOOTH );                  // Enable smooth shading
   glClearColor( 0.0, 0.0, 0.0, 0.0 );
   glClearDepth( 1.0 );                        // Depth buffer setup
   glEnable( GL_DEPTH_TEST );                  // Enables Depth Testing
@@ -97,6 +101,12 @@ begin
   //glCullFace( GL_BACK );
 
   glEnable(GL_TEXTURE_2D);
+
+  glEnable(GL_LIGHTING);
+  glEnable(GL_LIGHT0);
+  glLightfv(GL_LIGHT0, GL_AMBIENT, LightAmbient);
+  glLightfv(GL_LIGHT0, GL_DIFFUSE, LightDiffuse);
+  glLightfv(GL_LIGHT0, GL_POSITION,LightPosition);
 end;
 
 
