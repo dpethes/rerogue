@@ -5,7 +5,7 @@ interface
 
 uses
   Classes, SysUtils,
-  gl,
+  gl, glext, glu,
   rs_world;
 
 type
@@ -105,26 +105,28 @@ end;
 //generate textures. TODO texture atlas?
 procedure TTerrainMesh.InitGL;
 
-  procedure GenTexture(tex_idx: integer);
+  procedure GenTexture(tex_idx: integer; use_mip: boolean);
   const
     TexW = 64;
     TexH = 64;
   var
     tex: pbyte;
-    y: Integer;
-    x: Integer;
   begin
-    glGenTextures(1, @textures_glidx[tex_idx]);
-    glBindTexture(GL_TEXTURE_2D, textures_glidx[tex_idx]);
-
     tex := terrain.heightmap.textures[tex_idx];
     //pnm_save('tex'+IntToStr(tex_idx) + '.pnm', tex, TexW, TexH);  //debug
+    glGenTextures(1, @textures_glidx[tex_idx]);
+    glBindTexture(GL_TEXTURE_2D, textures_glidx[tex_idx]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, TexW, TexH, 0, GL_RGB, GL_UNSIGNED_BYTE, tex);
-
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-    //glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    //glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    if use_mip then begin
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+        gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGB8, TexW, TexH, GL_RGB, GL_UNSIGNED_BYTE, tex);
+    end else begin
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+    end;
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   end;
 
 var
@@ -133,7 +135,7 @@ begin
   glEnable(GL_TEXTURE_2D);
   SetLength(textures_glidx, terrain.heightmap.texture_count);
   for i := 0 to terrain.heightmap.texture_count - 1 do
-      GenTexture(i);
+      GenTexture(i, true);
 end;
 
 
@@ -210,9 +212,8 @@ procedure TTerrainMesh.DrawGL(opts: TRenderOpts);
   end;
 
 var
-  i, x, y, stride: integer;
+  x, y: integer;
   blk: TTerrainBlock;
-  v: TVertex3f;
 begin
   if opts.wireframe then
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
