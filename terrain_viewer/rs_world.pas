@@ -20,9 +20,9 @@ type
   TTile = packed record
       texture_index: word;
       unknown_attrib: byte;
-      height_lo: byte;
-      height_hi: byte;
-      heights: array[0..24] of byte;
+      height_lo: shortint;
+      height_hi: shortint;
+      heights: array[0..24] of shortint;
   end;
   PTile = ^TTile;
 
@@ -37,12 +37,6 @@ type
       texture_index_map: array of integer;
   end;
 
-  TVertex3f = record
-      x, y, z: single;
-      u, v: single
-  end;
-  PVertex3f = ^TVertex3f;
-
   { TWorld }
 
   TWorld = class
@@ -55,7 +49,6 @@ type
 
     public
       heightmap: THeightmap;
-      vertex_array: PVertex3f;
       vertex_count: integer;
 
       property TileWidth: word read heightmap.width;
@@ -217,7 +210,7 @@ begin
   heightmap.blk := blk;
 
   //tiles
-  //writeln('tiles: ', tile_count);
+  //writeln('filepos: ', FilePos(f)); writeln('tile pos: ', tile_offset);
   Seek(f, tile_offset);
   heightmap.tile_count := tile_count;
   heightmap.tiles := getmem(tile_count * 30);
@@ -241,13 +234,11 @@ end;
 constructor TWorld.Create;
 begin
   height_texture := nil;
-  vertex_array := nil;
 end;
 
 destructor TWorld.Destroy;
 begin
   if height_texture <> nil then Freemem(height_texture);
-  if vertex_array <> nil then Freemem(vertex_array);
   inherited Destroy;
 end;
 

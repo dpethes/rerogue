@@ -22,7 +22,7 @@ program terrain_viewer;
 uses
   sysutils, math,
   gl, glu, glext, sdl,
-  terrain_mesh, rs_world;
+  terrain_mesh;
 
 const
   SCR_W_fscrn = 1024;

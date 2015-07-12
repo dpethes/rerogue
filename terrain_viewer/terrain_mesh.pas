@@ -4,9 +4,9 @@ unit terrain_mesh;
 interface
 
 uses
-  Classes, SysUtils,
+  Classes, SysUtils, matrix,
   gl, glext, glu,
-  rs_world;
+  rs_world, vector_util;
 
 type
  TRenderOpts = record
@@ -17,17 +17,21 @@ type
       fg_to_draw: integer;
   end;
 
- TTerrainBlock = packed record
+ TTerrainBlock = record
      texture_index: integer;
-     vertices: array[0..25] of TVertex3f;
- end;
+     vertices: array[0..24] of Tvector3_single;         //25*3*4 = 300B
+     normals:  array[0..24] of Tvector3_single;         //25*3*4 = 300B
+ end; //~600B per block
 
   { TTerrainMesh }
   TTerrainMesh = class
     private
       terrain: TWorld;
       blocks: array of array of TTerrainBlock;
+      block_texcoords: array[0..24] of Tvector2_single;  //static, 25*2*4 = 200B
+      block_face_indices: array[0..16*2*3 - 1] of byte;  //static, 96B
       textures_glidx: array of integer;
+      procedure InitBlockStaticData;
       procedure TransformTiles;
     public
       destructor Destroy; override;
@@ -44,36 +48,60 @@ implementation
 }
 procedure TTerrainMesh.TransformTiles;
 
-  //basex/y - offset in vertices
-  //TODO solve flipped coords
-  procedure TileToBlock(var blk: TTerrainBlock; var tile: TTile; basex, basey: integer);
+  //basex/y - position in block units for given dimension (0..block_size-1)
+  //todo fix: the params are flipped.. and so are the calculations
+  function TileToBlock(var tile: TTile; basex, basey: integer): TTerrainBlock;
   const
     h_scale = 0.5;
   var
     x, y: integer;
-    v: TVertex3f;
-    width_half, height_half: integer;  //size in vertices
     v_scale: single;
   begin
-    width_half  := terrain.TileWidth  * 2;
-    height_half := terrain.TileHeight * 2;
+    result.texture_index := tile.texture_index;
+    //dim * vertices_per_tile - half_tile_dim * vertices_per_tile
+    basey := basey * 4 - terrain.TileHeight * 2;
+    basex := basex * 4 - terrain.TileWidth  * 2;
     v_scale := terrain.heightmap.y_scale;
     for y := 0 to 4 do
         for x := 0 to 4 do begin
-            v.x := (-width_half  + basex + x) * h_scale;
-            v.z := (-height_half + basey + y) * h_scale;
-            v.v := (1 - x/4);
-            v.u := y/4;
-            v.y := shortint(tile.heights[y+x*5]) * v_scale;
-            v.y := -v.y;
-
-            blk.vertices[y * 5 + x] := v;
+            result.vertices[y * 5 + x].init( //x,y,z
+              (basex + x) * h_scale,
+              tile.heights[y+x*5] * v_scale * -1,
+              (basey + y) * h_scale
+            );
         end;
-    blk.texture_index := tile.texture_index;
+  end;
+
+  //todo do proper per-vertex normal:
+  //this only calculates face normals and sets them to face's vertices, overwriting the value set
+  //from previous face
+  procedure FakeNormals(var blk: TTerrainBlock);
+    procedure SetTriData(const tri_idx: integer; const i0, i1, i2: byte);
+    var
+      normal: Tvector3_single;
+    begin
+      normal := GetNormal(blk.vertices[i0], blk.vertices[i1], blk.vertices[i2]);
+      blk.normals[i0] := normal;
+      blk.normals[i1] := normal;
+      blk.normals[i2] := normal;
+    end;
+  const
+    VertexStride = 5;
+  var
+    x, y, i, tri_idx: integer;
+  begin
+    tri_idx := 0;
+    for y := 0 to 3 do
+        for x := 0 to 3 do begin
+            i := y * VertexStride + x;
+            SetTriData(tri_idx, i+1, i, i+VertexStride);
+            SetTriData(tri_idx + 1, i+1, i+VertexStride, i+VertexStride+1);
+            tri_idx += 2;
+        end;
   end;
 
 var
-  x, y, i, tile_idx: integer;
+  x, y, tile_idx: integer;
   blk: TTerrainBlock;
   tile: TTile;
 begin
@@ -83,10 +111,44 @@ begin
           tile_idx := terrain.heightmap.blk[y * terrain.TileWidth + x];
           tile := terrain.heightmap.tiles[tile_idx];
 
-          TileToBlock(blk, tile, y * 4, x * 4);
+          blk := TileToBlock(tile, y, x);
+          FakeNormals(blk);
           blocks[y, x] := blk;
       end;
   end;
+end;
+
+{ InitBlockStaticData
+  Initializes data shared between tiles: face vertex indices, texture coords
+}
+procedure TTerrainMesh.InitBlockStaticData;
+
+  procedure SetTriData(const tri_idx: integer; const i0, i1, i2: byte);
+  begin
+    block_face_indices[tri_idx * 3 + 0] := i0;
+    block_face_indices[tri_idx * 3 + 1] := i1;
+    block_face_indices[tri_idx * 3 + 2] := i2;
+  end;
+
+const
+  VertexStride = 5;
+var
+  x, y, i, tri_idx: integer;
+begin
+  tri_idx := 0;
+  //init face indices
+  for y := 0 to 3 do
+      for x := 0 to 3 do begin
+          i := y * VertexStride + x;
+          SetTriData(tri_idx,   i+1, i, i+VertexStride);
+          SetTriData(tri_idx+1, i+1, i+VertexStride, i+VertexStride+1);
+          tri_idx += 2;
+      end;
+  //init uv coords
+  for y := 0 to 4 do
+      for x := 0 to 4 do begin
+          block_texcoords[y * 5 + x].init(y/4, 1 - x/4);  //u, v
+      end;
 end;
 
 destructor TTerrainMesh.Destroy;
@@ -100,6 +162,10 @@ begin
    terrain.LoadFromFiles('hmp_0', 'lv_0.text', 'lv_0.tex');
    //terrain.LoadFromFiles('hmp_1', 'lv_1.text', 'lv_1.tex');
    TransformTiles;
+   InitBlockStaticData;
+   WriteLn(Format('terrain size: %dx%d, tris: %d',
+                           [terrain.TileWidth, terrain.TileHeight,
+                           terrain.TileWidth * terrain.TileHeight * 4 * 4 * 2]));
 end;
 
 //generate textures. TODO texture atlas?
@@ -139,91 +205,42 @@ begin
 end;
 
 
-//cross product + normalize
-function GetNormalv(const v0, v1, v2: TVertex3f): TVertex3f;
-var
-  a, b: TVertex3f;
-  len: single;
-begin
-  a.x := v0.x - v1.x;
-  a.y := v0.y - v1.y;
-  a.z := v0.z - v1.z;
-
-  b.x := v1.x - v2.x;
-  b.y := v1.y - v2.y;
-  b.z := v1.z - v2.z;
-
-  result.x := (a.y * b.z) - (a.z * b.y);
-  result.y := (a.z * b.x) - (a.x * b.z);
-  result.z := (a.x * b.y) - (a.y * b.x);
-
-  len := sqrt( sqr(result.x) + sqr(result.y) + sqr(result.z) );
-  if len = 0 then len := 1;
-
-  result.x /= len;
-  result.y /= len;
-  result.z /= len;
-end;
-
-
 //draw vertices from each block
 procedure TTerrainMesh.DrawGL(opts: TRenderOpts);
-
-  procedure RenderBlock(var blk: TTerrainBlock);
-    procedure RenderTri(i0, i1, i2:integer);
-    var
-      v, n: TVertex3f;
-    begin
-      n := GetNormalv(blk.vertices[i0], blk.vertices[i1], blk.vertices[i2]);
-      v := blk.vertices[i0];
-      glNormal3f(n.x, n.y, n.z);
-      glTexCoord2f(v.u, v.v);
-      glVertex3fv(@v);
-      v := blk.vertices[i1];
-      glTexCoord2f(v.u, v.v);
-      glVertex3fv(@v);
-      v := blk.vertices[i2];
-      glTexCoord2f(v.u, v.v);
-      glVertex3fv(@v);
-    end;
-  var
-    i, x, y, stride: integer;
-  begin
-    stride := 5;
-    glBindTexture(GL_TEXTURE_2D, textures_glidx[blk.texture_index]);
-
-    glBegin(GL_TRIANGLES);
-    //glColor3f(0, 1, 0);
-    for y := 0 to 3 do
-        for x := 0 to 3 do begin
-            //do two triangles
-            i := y * stride + x;
-            RenderTri(i+1, i, i+stride);
-            RenderTri(i+1, i+stride, i+stride+1);
-        end;
-    glEnd;
-  { //only 2 tris per block
-    glBegin(GL_TRIANGLES);
-      i := y * stride + x;
-      RenderTri(0, 4, 24);
-      RenderTri(24, 20, 0);
-    glEnd;
-  }
-  end;
-
 var
   x, y: integer;
   blk: TTerrainBlock;
+  last_tex_index: integer;
 begin
   if opts.wireframe then
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
   else
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
   glEnable(GL_TEXTURE_2D);
+  glEnableClientState(GL_VERTEX_ARRAY);
+  glEnableClientState(GL_NORMAL_ARRAY);
+  glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+  last_tex_index := -1;
+
   for y := 0 to terrain.TileHeight - 1 do
       for x := 0 to terrain.TileWidth - 1 do begin
           blk := blocks[y, x];
-          RenderBlock(blk);
+          //repeated texture binding slows this down a lot (68->30fps)
+          //todo sort by texture?
+          if last_tex_index <> blk.texture_index then begin
+              last_tex_index := blk.texture_index;
+              glBindTexture(GL_TEXTURE_2D, textures_glidx[last_tex_index]);
+          end;
+
+          glVertexPointer(3, GL_FLOAT, sizeof(Tvector3_single), @blk.vertices[0].data[0]);
+          glNormalPointer(GL_FLOAT, sizeof(Tvector3_single), @blk.normals[0].data[0]);
+          glTexCoordPointer(2, GL_FLOAT, sizeof(Tvector2_single), @block_texcoords[0].data[0]);
+
+          if opts.points then
+              glDrawArrays(GL_POINTS, 0, 25)
+          else
+              glDrawElements(GL_TRIANGLES, 16*2*3, GL_UNSIGNED_BYTE, @block_face_indices);
       end;
 end;
 
