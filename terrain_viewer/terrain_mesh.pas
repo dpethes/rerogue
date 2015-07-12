@@ -22,6 +22,7 @@ type
      vertices: array[0..24] of Tvector3_single;         //25*3*4 = 300B
      normals:  array[0..24] of Tvector3_single;         //25*3*4 = 300B
  end; //~600B per block
+ PTerrainBlock = ^TTerrainBlock;
 
   { TTerrainMesh }
   TTerrainMesh = class
@@ -31,6 +32,8 @@ type
       block_texcoords: array[0..24] of Tvector2_single;  //static, 25*2*4 = 200B
       block_face_indices: array[0..16*2*3 - 1] of byte;  //static, 96B
       textures_glidx: array of integer;
+      render_blocks: TList;
+
       function TileToBlock(var tile: TTile; basey, basex: integer): TTerrainBlock;
       procedure TransformTiles;
       procedure InitBlockStaticData;
@@ -159,7 +162,18 @@ begin
   inherited Destroy;
 end;
 
+function OrderByTex(Item1: Pointer; Item2: Pointer): integer;
+var
+  a, b: PTerrainBlock;
+begin
+  a := PTerrainBlock(Item1);
+  b := PTerrainBlock(Item2);
+  result := a^.texture_index - b^.texture_index;
+end;
+
 procedure TTerrainMesh.Load(const hmp_filename: string);
+var
+  x, y: integer;
 begin
    terrain := TWorld.Create;
    terrain.LoadFromFiles('hmp_0', 'lv_0.text', 'lv_0.tex');
@@ -169,6 +183,12 @@ begin
    WriteLn(Format('terrain size: %dx%d, tris: %d',
                            [terrain.TileWidth, terrain.TileHeight,
                            terrain.TileWidth * terrain.TileHeight * 4 * 4 * 2]));
+
+   render_blocks := TList.Create;
+   for y := 0 to terrain.TileHeight - 1 do
+       for x := 0 to terrain.TileWidth - 1 do
+           render_blocks.Add(@blocks[y, x]);
+   render_blocks.Sort(@OrderByTex);
 end;
 
 //generate textures. TODO texture atlas?
@@ -208,11 +228,16 @@ begin
 end;
 
 
-//draw vertices from each block
+{ DrawGL
+  Renders terrain blocks.
+  Terrain textures are stored independently, and if we process the blocks in spatial order,
+  repeated texture binding slows this down a lot (68->30fps).
+  So we sort blocks by texture and render them out of order.
+}
 procedure TTerrainMesh.DrawGL(opts: TRenderOpts);
 var
-  x, y: integer;
-  blk: TTerrainBlock;
+  i: integer;
+  b: PTerrainBlock;
   last_tex_index: integer;
 begin
   if opts.wireframe then
@@ -226,26 +251,23 @@ begin
   glEnableClientState(GL_TEXTURE_COORD_ARRAY);
   last_tex_index := -1;
 
-  for y := 0 to terrain.TileHeight - 1 do
-      for x := 0 to terrain.TileWidth - 1 do begin
-          blk := blocks[y, x];
+  for i := 0 to terrain.TileHeight * terrain.TileWidth - 1 do begin
+      b := PTerrainBlock(render_blocks[i]);
 
-          //repeated texture binding slows this down a lot (68->30fps)
-          //todo sort by texture?
-          if last_tex_index <> blk.texture_index then begin
-              last_tex_index := blk.texture_index;
-              glBindTexture(GL_TEXTURE_2D, textures_glidx[last_tex_index]);
-          end;
-
-          glVertexPointer(3, GL_FLOAT, sizeof(Tvector3_single), @blk.vertices[0].data[0]);
-          glNormalPointer(GL_FLOAT, sizeof(Tvector3_single), @blk.normals[0].data[0]);
-          glTexCoordPointer(2, GL_FLOAT, sizeof(Tvector2_single), @block_texcoords[0].data[0]);
-
-          if opts.points then
-              glDrawArrays(GL_POINTS, 0, 25)
-          else
-              glDrawElements(GL_TRIANGLES, 16*2*3, GL_UNSIGNED_BYTE, @block_face_indices);
+      if last_tex_index <> b^.texture_index then begin
+          last_tex_index := b^.texture_index;
+          glBindTexture(GL_TEXTURE_2D, textures_glidx[last_tex_index]);
       end;
+
+      glVertexPointer(3, GL_FLOAT, sizeof(Tvector3_single), @b^.vertices[0].data[0]);
+      glNormalPointer(GL_FLOAT, sizeof(Tvector3_single), @b^.normals[0].data[0]);
+      glTexCoordPointer(2, GL_FLOAT, sizeof(Tvector2_single), @block_texcoords[0].data[0]);
+
+      if opts.points then
+          glDrawArrays(GL_POINTS, 0, 25)
+      else
+          glDrawElements(GL_TRIANGLES, 16*2*3, GL_UNSIGNED_BYTE, @block_face_indices);
+  end;
 end;
 
 end.
