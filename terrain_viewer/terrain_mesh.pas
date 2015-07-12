@@ -31,8 +31,9 @@ type
       block_texcoords: array[0..24] of Tvector2_single;  //static, 25*2*4 = 200B
       block_face_indices: array[0..16*2*3 - 1] of byte;  //static, 96B
       textures_glidx: array of integer;
-      procedure InitBlockStaticData;
+      function TileToBlock(var tile: TTile; basey, basex: integer): TTerrainBlock;
       procedure TransformTiles;
+      procedure InitBlockStaticData;
     public
       destructor Destroy; override;
       procedure Load(const hmp_filename: string);
@@ -42,41 +43,45 @@ type
 
 implementation
 
-{
-  While vertical scaling is stored within file, horizontal seems to be always 0.5
-  The generated y coords are flipped for (opengl) rendering
+{ TileToBlock
+  Create single terrain block at given position using RS3D tile.
+  Basex/y is the position in block units for given dimension.
+  While vertical scaling is stored within file, horizontal seems to be always 0.5.
+  The generated x, y coords are flipped for (opengl) rendering.
+}
+function TTerrainMesh.TileToBlock(var tile: TTile; basey, basex: integer): TTerrainBlock;
+const
+  h_scale = 0.5;
+var
+  x, y, idx: integer;
+  v_scale: single;
+begin
+  result.texture_index := tile.texture_index;
+  //dim * vertices_per_tile - half_tile_dim * vertices_per_tile
+  basey := basey * 4 - terrain.TileHeight * 2;
+  basex := basex * 4 - terrain.TileWidth  * 2;
+  v_scale := terrain.heightmap.y_scale;
+  for y := 0 to 4 do
+      for x := 0 to 4 do begin
+          idx := y * 5 + x;
+            result.vertices[idx].init( //x,y,z, rotated by 180 around z
+            (basex + x) * h_scale * -1,
+            tile.heights[idx] * v_scale * -1,
+            (basey + y) * h_scale
+          );
+      end;
+end;
+
+{ TransformTiles
+  Create terrain blocks from RS3D data
 }
 procedure TTerrainMesh.TransformTiles;
-
-  //basex/y - position in block units for given dimension (0..block_size-1)
-  //todo fix: the params are flipped.. and so are the calculations
-  function TileToBlock(var tile: TTile; basex, basey: integer): TTerrainBlock;
-  const
-    h_scale = 0.5;
-  var
-    x, y: integer;
-    v_scale: single;
-  begin
-    result.texture_index := tile.texture_index;
-    //dim * vertices_per_tile - half_tile_dim * vertices_per_tile
-    basey := basey * 4 - terrain.TileHeight * 2;
-    basex := basex * 4 - terrain.TileWidth  * 2;
-    v_scale := terrain.heightmap.y_scale;
-    for y := 0 to 4 do
-        for x := 0 to 4 do begin
-            result.vertices[y * 5 + x].init( //x,y,z
-              (basex + x) * h_scale,
-              tile.heights[y+x*5] * v_scale * -1,
-              (basey + y) * h_scale
-            );
-        end;
-  end;
 
   //todo do proper per-vertex normal:
   //this only calculates face normals and sets them to face's vertices, overwriting the value set
   //from previous face
   procedure FakeNormals(var blk: TTerrainBlock);
-    procedure SetTriData(const tri_idx: integer; const i0, i1, i2: byte);
+    procedure SetTriData(const i0, i1, i2: byte);
     var
       normal: Tvector3_single;
     begin
@@ -88,15 +93,13 @@ procedure TTerrainMesh.TransformTiles;
   const
     VertexStride = 5;
   var
-    x, y, i, tri_idx: integer;
+    x, y, i: integer;
   begin
-    tri_idx := 0;
     for y := 0 to 3 do
         for x := 0 to 3 do begin
             i := y * VertexStride + x;
-            SetTriData(tri_idx, i+1, i, i+VertexStride);
-            SetTriData(tri_idx + 1, i+1, i+VertexStride, i+VertexStride+1);
-            tri_idx += 2;
+            SetTriData(i, i+1, i+VertexStride);
+            SetTriData(i+1, i+VertexStride+1, i+VertexStride);
         end;
   end;
 
@@ -140,14 +143,14 @@ begin
   for y := 0 to 3 do
       for x := 0 to 3 do begin
           i := y * VertexStride + x;
-          SetTriData(tri_idx,   i+1, i, i+VertexStride);
-          SetTriData(tri_idx+1, i+1, i+VertexStride, i+VertexStride+1);
+          SetTriData(tri_idx,   i, i+1, i+VertexStride);
+          SetTriData(tri_idx+1, i+1, i+VertexStride+1, i+VertexStride);
           tri_idx += 2;
       end;
   //init uv coords
   for y := 0 to 4 do
       for x := 0 to 4 do begin
-          block_texcoords[y * 5 + x].init(y/4, 1 - x/4);  //u, v
+          block_texcoords[y * 5 + x].init(x/4, 1 - y/4);  //u, v
       end;
 end;
 
@@ -226,6 +229,7 @@ begin
   for y := 0 to terrain.TileHeight - 1 do
       for x := 0 to terrain.TileWidth - 1 do begin
           blk := blocks[y, x];
+
           //repeated texture binding slows this down a lot (68->30fps)
           //todo sort by texture?
           if last_tex_index <> blk.texture_index then begin
