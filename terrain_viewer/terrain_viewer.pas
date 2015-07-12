@@ -51,16 +51,6 @@ var
       opts: TRenderOpts;
   end;
 
-  key_pressed: record
-      wireframe: boolean;
-      vcolors: boolean;
-      points: boolean;
-      textures: boolean;
-      fullscreen: boolean;
-      autorotate: boolean;
-      fg: boolean;
-  end;
-
   mouse: record
       drag: boolean;
       translate: boolean;
@@ -91,7 +81,7 @@ begin
   writeln(ogl_info);
 
   glShadeModel( GL_SMOOTH );                  // Enable smooth shading
-  glClearColor( 0.0, 0.0, 0.0, 0.0 );
+  glClearColor( 0.0, 0.3, 0.6, 0.0 );
   glClearDepth( 1.0 );                        // Depth buffer setup
   glEnable( GL_DEPTH_TEST );                  // Enables Depth Testing
   glDepthFunc( GL_LEQUAL );                   // The Type Of Depth Test To Do
@@ -227,8 +217,7 @@ begin
            case event.key.keysym.sym of
              SDLK_ESCAPE:
                  Done := true;
-             SDLK_F1:
-                 if not key_pressed.fullscreen then begin
+             SDLK_F1: begin
                      if not fullscreen then begin
                          SetMode(SCR_W_fscrn, SCR_H_fscrn, true);
                          fullscreen := true;
@@ -237,8 +226,8 @@ begin
                          fullscreen := false;
                      end;
                      InitGL;
+                     terrain.InitGL;
                      ResizeWindow( surface^.w, surface^.h );
-                     key_pressed.fullscreen := true;
                  end;
              SDLK_s:
                  WindowScreenshot( surface^.w, surface^.h );
@@ -247,53 +236,21 @@ begin
              SDLK_PAGEDOWN:
                  view.distance -= ZoomIncrement;
              SDLK_r:
-                 if not key_pressed.autorotate then begin
-                     view.autorotate := not view.autorotate;
-                     key_pressed.autorotate := true;
-                 end;
+                 view.autorotate := not view.autorotate;
 
              //terrain rendering opts
              SDLK_w:
-                 if not key_pressed.wireframe then begin
-                     view.opts.wireframe := not view.opts.wireframe;
-                     key_pressed.wireframe := true;
-                 end;
+                 view.opts.wireframe := not view.opts.wireframe;
              SDLK_v:
-                 if not key_pressed.vcolors then begin
-                     view.opts.vcolors := not view.opts.vcolors;
-                     key_pressed.vcolors := true;
-                 end;
+                 view.opts.vcolors := not view.opts.vcolors;
              SDLK_p:
-                 if not key_pressed.points then begin
-                     view.opts.points := not view.opts.points;
-                     key_pressed.points := true;
-                 end;
+                 view.opts.points := not view.opts.points;
              SDLK_t:
-                 if not key_pressed.textures then begin
-                     view.opts.textures := not view.opts.textures;
-                     key_pressed.textures := true;
-                 end;
+                 view.opts.textures := not view.opts.textures;
              SDLK_LEFT:
                  view.opts.fg_to_draw := max(0, view.opts.fg_to_draw - 1);
              SDLK_RIGHT:
                  view.opts.fg_to_draw += 1;
-
-           end;
-
-       SDL_KEYUP:
-           case event.key.keysym.sym of
-             SDLK_F1:
-                 key_pressed.fullscreen := false;
-             SDLK_w:
-                 key_pressed.wireframe := false;
-             SDLK_v:
-                 key_pressed.vcolors := false;
-             SDLK_p:
-                 key_pressed.points := false;
-             SDLK_t:
-                 key_pressed.textures := false;
-             SDLK_r:
-                 key_pressed.autorotate := false;
            end;
 
        SDL_MOUSEBUTTONDOWN: begin
@@ -344,16 +301,16 @@ end;
 //******************************************************************************
 var
   sec, frames: integer;
-  in_file: string;
+  in_file: integer;
 
 begin
   if Paramcount < 1 then begin
-      writeln('specify HMP file');
+      writeln('specify HMP file index');
       exit;
   end;
-  in_file := ParamStr(1);
+  in_file := StrToInt( ParamStr(1) );
   terrain := TTerrainMesh.Create;
-  terrain.Load(in_file);
+  terrain.Load(14);
 
   writeln('Init SDL...');
   SDL_Init( SDL_INIT_VIDEO );
@@ -370,8 +327,6 @@ begin
   sec := SDL_GetTicks;
   frames := 0;
   Done := False;
-  key_pressed.wireframe := false;
-  key_pressed.fullscreen := false;
   while not Done do begin
       HandleEvent;
       DrawGLScene;
@@ -380,9 +335,10 @@ begin
           write(frames:3, ' dist: ', view.distance:5:1, ' rot: ', view.rotation_angle:5:1, #13);
           frames := 0;
           sec := SDL_GetTicks;
+
+          //WindowScreenshot( surface^.w, surface^.h );
       end;
       SDL_Delay(10);
-      //WindowScreenshot( surface^.w, surface^.h );
   end;
 
   terrain.Free;

@@ -29,7 +29,7 @@
     <RunParams>
       <local>
         <FormatVersion Value="1"/>
-        <CommandLineParams Value="hmp"/>
+        <CommandLineParams Value="1"/>
       </local>
     </RunParams>
     <RequiredPackages Count="1">

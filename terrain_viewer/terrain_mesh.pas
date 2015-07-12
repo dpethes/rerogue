@@ -39,7 +39,7 @@ type
       procedure InitBlockStaticData;
     public
       destructor Destroy; override;
-      procedure Load(const hmp_filename: string);
+      procedure Load(level_idx: integer);
       procedure InitGL;
       procedure DrawGL(opts: TRenderOpts);
   end;
@@ -171,13 +171,20 @@ begin
   result := a^.texture_index - b^.texture_index;
 end;
 
-procedure TTerrainMesh.Load(const hmp_filename: string);
+procedure TTerrainMesh.Load(level_idx: integer);
+const
+  LevelIds = '0123456789abcdefgh';
 var
   x, y: integer;
+  c: char;
 begin
    terrain := TWorld.Create;
-   terrain.LoadFromFiles('hmp_0', 'lv_0.text', 'lv_0.tex');
-   //terrain.LoadFromFiles('hmp_1', 'lv_1.text', 'lv_1.tex');
+   level_idx := level_idx mod length(LevelIds);
+   c := LevelIds[1 + level_idx];
+   terrain.LoadFromFiles(
+       'data\hmp_' + c,
+       'data\lv_'+c+'.text',
+       'data\lv_'+c+'.tex');
    TransformTiles;
    InitBlockStaticData;
    WriteLn(Format('terrain size: %dx%d, tris: %d',
