@@ -286,7 +286,6 @@ begin
       end;
 
       start_idx := end_idx;
-      end_idx += 1;
       if end_idx > render_blocks.Count - 1 then
           break;
   end;
