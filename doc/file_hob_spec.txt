@@ -1,7 +1,14 @@
-4B object count OF. 0 in empty files
-4B simple offset to vertices/faces - doesn't work all the time. Probably useless?
+HOB
+{
+  4B object count OF. 0 in empty files
+  4B simple offset to vertices/faces - doesn't work all the time. Probably useless?
+  array[OF] of object header
+  array[OF] of facegroup header 
+  ..
+  array[] of vertices
+}
 
-OF * object header 116B 
+OF * object header [116B] 
 {
   16B name
   4B int facegroups offset
@@ -21,7 +28,7 @@ OF * object header 116B
   6x 4B float ?
 }
 
-OF * facegroup header 
+OF * facegroup header [varlen]
 {
   2B number of facegroups NOF
   2B NX ?
@@ -40,7 +47,7 @@ OF * facegroup header
   4B 0xFFFFFFFF header end marker
 }
 
-NOF * facegroup/meshdef0 (fg/m0) 132B 
+NOF * facegroup/meshdef0 (fg/m0) [132B]
 {
   4B int offset to next fg/m0, 0 if there's no next, or in some other circumstances
   4B int offset to prev?
@@ -52,13 +59,14 @@ NOF * facegroup/meshdef0 (fg/m0) 132B
     4B float 1.0
     12B zero
   }
-  4B int
+  4B int, 8 in atst, 0 in tief, 1,9,5 in atpt
   3 * 4B float
-  3 * 4B float 1.0
-  28B zero
+  3 * 4B float 1.0, 2.961700037E-02?
+  4 * 4B float
+  3 * 4B float - (relative) translation x/y/z?
 }
 
-NOF * facegroup/meshdef1 96B 
+NOF * facegroup/meshdef1 [96B] 
 {
   4B int facedef end offset
   20B zero
