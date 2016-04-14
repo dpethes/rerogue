@@ -3,11 +3,13 @@ syntax: glob
 *.o
 *.ppu
 *.a
+*.dll
 *.compiled
 *.lps
 *.s
 *.res
 *.bat
+*.obj
 *.hob
 *.hmt
 *.HOB

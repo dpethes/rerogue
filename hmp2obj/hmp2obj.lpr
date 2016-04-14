@@ -1,6 +1,17 @@
 program hmp2obj;
 
-uses rs_world;
+uses
+  sysutils,
+  rs_world;
+
+function TestPath(s: string): string;
+begin
+  result := s;
+  if not FileExists(s) then begin
+      writeln('file doesn''t exist: ', s);
+      Halt;
+  end;
+end;
 
 var
   tex_fname, text_fname, hmp_fname: string;
@@ -13,9 +24,9 @@ begin
       halt;
   end;
 
-  hmp_fname := ParamStr(1);
-  text_fname := ParamStr(2);
-  tex_fname := ParamStr(3);
+  hmp_fname  := TestPath(ParamStr(1));
+  text_fname := TestPath(ParamStr(2));
+  tex_fname  := TestPath(ParamStr(3));
 
   world := TWorld.Create;
   world.LoadFromFiles(hmp_fname, text_fname, tex_fname);
