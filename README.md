@@ -28,5 +28,5 @@ TODO
 * hmt parser: decode all image subtypes
 * hmt compiler: needs some usable interface
 * hob parser: parse more header fields
-* bundle repack: extract & compile bundle.00x archives
-* terrain viewer: use tiling and texturing
+* bundle repack: pack bundle.00x archives
+
