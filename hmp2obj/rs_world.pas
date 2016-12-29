@@ -65,6 +65,7 @@ type
 
       procedure LoadFromFiles(const hmp, tex, texmap: string);
       procedure ExportToObj(const objfname: string);
+      procedure ExportToRaw(const rawfname: string);
 
       constructor Create;
       destructor Destroy; override;
@@ -347,7 +348,6 @@ var
   v: TVertex3f;
   x, y, stride: integer;
   i2, i3: integer;
-  texfname: string;
 begin
   AssignFile(f, objFname);
   Rewrite(f);
@@ -403,6 +403,22 @@ begin
   HeightmapToTexture;
   GenerateVertices;
   WriteToObj(objfname);
+end;
+
+procedure TWorld.ExportToRaw(const rawfname: string);
+var
+  f: file;
+  image_size, i: integer;
+  y: Byte;
+begin
+  AssignFile(f, rawfname);
+  Rewrite(f,1);
+  image_size := heightmap.width * heightmap.height;
+  for i := 0 to image_size - 1 do begin
+      y := 255 - height_texture[i];  //negative scale - Unity uses it like this, for example
+      BlockWrite(f, y, 1);
+  end;
+  CloseFile(f);
 end;
 
 constructor TWorld.Create;

@@ -17,9 +17,6 @@
     <i18n>
       <EnableI18N LFM="False"/>
     </i18n>
-    <VersionInfo>
-      <StringTable ProductVersion=""/>
-    </VersionInfo>
     <BuildModes Count="1">
       <Item1 Name="Default" Default="True"/>
     </BuildModes>
@@ -36,12 +33,10 @@
       <Unit0>
         <Filename Value="hmp2obj.lpr"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="hmp2obj"/>
       </Unit0>
       <Unit1>
         <Filename Value="rs_world.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="rs_world"/>
       </Unit1>
     </Units>
   </ProjectOptions>
@@ -55,12 +50,6 @@
       <IncludeFiles Value="$(ProjOutDir)"/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
-    <Other>
-      <CompilerMessages>
-        <MsgFileName Value=""/>
-      </CompilerMessages>
-      <CompilerPath Value="$(CompPath)"/>
-    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="3">

@@ -35,6 +35,7 @@ begin
   writeln('tile size: ', world.TileWidth, 'x', world.TileHeight);
 
   world.ExportToObj('heightmap.obj');
+  world.ExportToRaw('heightmap.raw');
   writeln('world exported');
 
   world.Free;
