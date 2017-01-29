@@ -327,7 +327,7 @@ end;
 //******************************************************************************
 var
   sec, frames: integer;
-  hob_file, hmt_file: string;
+  hob_file, hmt_file, obj_file: string;
 
 begin
   if Paramcount < 1 then begin
@@ -350,6 +350,10 @@ begin
 
   InitView;
   model.InitGL;
+
+  //export
+  obj_file := StringReplace(hob_file, '.hob', '.obj', [rfIgnoreCase]);
+  model.ExportObj(obj_file);
 
   sec := SDL_GetTicks;
   frames := 0;

@@ -58,6 +58,7 @@ type
       procedure Load(const hob_filename, hmt_filename: string);
       procedure InitGL;
       procedure DrawGL(opts: TRenderOpts);
+      procedure ExportObj(const obj_name: string);
   end;
 
 implementation
@@ -333,6 +334,122 @@ begin
 //k := min(opts.fg_to_draw, Length(_triangles) - 1);
       for i := 0 to _triangles[k].Count - 1 do
           DrawTri(_triangles[k][i]);
+end;
+
+
+const
+  HeaderComment = 'Exported with HOB viewer';
+  DefaultMaterial = 'default';
+
+
+procedure TModel.ExportObj(const obj_name: string);
+const
+  DesiredUnitSize = 2;
+var
+  objfile: TextFile;
+  vt: TVertex;
+  face: TTriangle;
+
+  x, y, z: double;
+  u, v: double;
+
+  scaling_factor: double;
+  coord_max: double;
+  uv_counter: integer;
+  vertex3d_offset: integer;
+  last_material_index: integer;
+
+  i,j,k: integer;
+  vertex_counter: Integer;
+
+function GetMaxCoord: double;
+var
+  vt: TVertex;
+  i,j,k: integer;
+begin
+  result := 0;
+  for i := 0 to _vertices.Count - 1 do begin
+      vt := _vertices[i];
+      x := abs(vt.x);
+      y := abs(vt.y);
+      z := abs(vt.z);
+      coord_max := Max(z, Max(x, y));
+      if coord_max > result then
+          result := coord_max;
+  end;
+end;
+
+begin
+  AssignFile(objfile, obj_name);
+  Rewrite(objfile);
+
+  writeln(objfile, '# ' + HeaderComment);
+  writeln(objfile, 'mtllib ', obj_name + '.mtl');
+
+  //scale pass
+  scaling_factor := 1;
+  //scaling_factor := DesiredUnitSize / GetMaxCoord;
+
+  //vertex pass
+  for k := 0 to Length(_triangles) - 1 do
+      for i := 0 to _triangles[k].Count - 1 do begin
+          face := _triangles[k][i];
+          for vt in face.vertices do begin
+              x := (vt.x) * scaling_factor;
+              y := (vt.y) * scaling_factor;
+              z := (vt.z) * scaling_factor;
+              writeln(objfile, 'v ', x:10:6, ' ', y:10:6, ' ', z:10:6);
+          end;
+      end;
+
+  //uv pass
+  for k := 0 to Length(_triangles) - 1 do
+      for i := 0 to _triangles[k].Count - 1 do begin
+          face := _triangles[k][i];
+          for j := 0 to 2 do begin
+              u := face.tex_coords[j, 0];
+              v := face.tex_coords[j, 1];
+              writeln(objfile, 'vt ', u:10:6, ' ', v:10:6);
+          end;
+      end;
+
+  //face / material pass
+  uv_counter := 1;
+  vertex_counter := 1;
+  last_material_index := -1;
+
+  for k := 0 to Length(_triangles) - 1 do begin
+      if _triangles[k].Count = 0 then
+          continue;
+
+      writeln(objfile, 'g ', k);
+
+      for i := 0 to _triangles[k].Count - 1 do begin
+          face := _triangles[k][i];
+
+          if face.material_index <> last_material_index then begin
+              if face.material_index = -1 then
+                  writeln(objfile, 'usemtl ' + DefaultMaterial)
+              else
+                  writeln(objfile, 'usemtl material_id', face.material_index);
+              last_material_index := face.material_index;
+          end;
+
+          write(objfile, 'f ');
+          for vt in face.vertices do begin
+              write(objfile, vertex_counter);
+              write(objfile, '/', uv_counter);
+              write(objfile, ' ');
+              vertex_counter += 1;
+              uv_counter += 1;
+          end;
+          writeln(objfile);
+      end;
+  end;
+
+  CloseFile(objfile);
+
+  //SaveMaterials(pdo, obj_name);
 end;
 
 end.
