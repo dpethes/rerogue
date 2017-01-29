@@ -33,6 +33,11 @@ type
       face_block_offset,
       vertex_block_offset: integer;
 
+      fg_group_id: integer;
+      transform: record
+          x,y,z: single;
+      end;
+
       face_count: integer;
       faces: array of THobFace;
 
@@ -65,7 +70,7 @@ function ParseHobFile(const fname: string): THobFile;
 implementation
 
 const
-  DumpFaces = true;
+  DumpFaces = false;
 
 function NameToString(name: array of byte): string;
 var
@@ -200,18 +205,51 @@ begin
   end;
 end;
 
+var fgid: integer = 0;
 
 procedure ReadFaceGroup(var fg: THobFaceGroup; var f: TMemoryStream);
 var
   filepos: int64;
+  fnum: single;
+  i: Integer;
+  zero: int64;
+  fg_next, fg_end: integer;
 begin
   //save file position before seeking to face/vertex data and restore it, to read next group properly
   filepos := f.Position;
 
   //read group/meshdef0
-  f.Seek(16, fsFromCurrent);  //unknown
+  fg_next := f.ReadDWord;
+  f.Seek(4*2, fsFromCurrent);  //unknown
+  fg_end := f.ReadDWord;
   fg.meshdef1_offset := f.ReadDWord;
+
+  writeln();
+  writeln('fg: ', fgid); fgid += 1;
+  writeln('fg next: ', fg_next, ' end: ', fg_end);
   writeln('fg meshdef1 offset:', fg.meshdef1_offset);
+
+  zero := f.ReadQWord;
+  if zero <> 0 then
+      writeln('unusual file: facegroup 0 zero');
+
+  for i := 1 to (48) div 4 do begin
+      f.ReadBuffer(fnum, 4);
+      //writeln(fnum);
+  end;
+  fg.fg_group_id := f.ReadDWord;
+  for i := 1 to (3*4 + 3*4 + 4*4) div 4 do begin
+      f.ReadBuffer(fnum, 4);
+      //writeln(fnum);
+  end;
+  f.ReadBuffer(fg.transform.x, 4);
+  f.ReadBuffer(fg.transform.y, 4);
+  f.ReadBuffer(fg.transform.z, 4);
+
+  writeln(fg.fg_group_id);
+  writeln(fg.transform.x:7:5);
+  writeln(fg.transform.y:7:5);
+  writeln(fg.transform.z:7:5);
 
   if fg.meshdef1_offset > 0 then begin
       //read meshdef1
@@ -232,6 +270,16 @@ begin
       writeln('vertices at: ', fg.vertex_block_offset, hexStr(fg.vertex_block_offset, 4):6);
       f.Seek(fg.vertex_block_offset, fsFromBeginning);
       ReadVertices(fg, f, fg.vertex_count);
+
+      //if (scale > 0) then
+      //for i := 0 to fg.vertex_count - 1 do begin
+      //    //fg.vertices[i].x += trunc(tx * 300);
+      //    //fg.vertices[i].y += trunc(ty * 300);
+      //    //fg.vertices[i].z += trunc(tz * 300);
+      //  fg.vertices[i].x *= scale;
+      //  fg.vertices[i].y *= scale;
+      //  fg.vertices[i].z *= scale;
+      //end;
   end;
 end;
 

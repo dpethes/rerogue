@@ -4,8 +4,8 @@ unit hob_mesh;
 interface
 
 uses
-  Classes, SysUtils, gl,
-  fgl, GenericStructList, hob_parser, hmt_parser;
+  Classes, SysUtils, gl, math, fgl,
+  GenericStructList, hob_parser, hmt_parser;
 
 type
   TVertex = record
@@ -36,6 +36,7 @@ type
       points: boolean;
       vcolors: boolean;
       textures: boolean;
+      fg_to_draw: integer;
   end;
 
   { TModel
@@ -45,7 +46,7 @@ type
   TModel = class
     private
       _vertices: TVertexList;
-      _triangles: TTriangleList;
+      _triangles: array of TTriangleList;
       _materials: array of TMaterial;
       _hmt: THmtFile;
       _hmt_loaded: boolean;
@@ -87,6 +88,10 @@ var
   v: TVertex;
   group_vertices: TVertexList;
   triangle: TTriangle;
+  fg_idx: integer;
+  tris: TTriangleList;
+  last_idx: integer;
+  tx, ty, tz: single;
 
   function InitVertex(face: THobFace; offset: integer): TTriangle;
   var
@@ -104,27 +109,42 @@ var
 
 begin
   group_vertices := TVertexList.Create;
+  setlength(_triangles, Length(mesh.face_groups));
+  fg_idx := 0;
+  last_idx:=0;
   for fg in mesh.face_groups do begin
       for i := 0 to fg.vertex_count - 1 do begin
           v.x := FixRange(fg.vertices[i].x);
           v.y := FixRange(fg.vertices[i].y);
           v.z := FixRange(fg.vertices[i].z);
+
+
+            v.x += fg.transform.x/16;
+            v.y += fg.transform.y/16;
+            v.z += fg.transform.z/16;
+
+
           //flip Y for OpenGL coord system, otherwise the model is upside down.
           //Flip x coord too, otherwise the model looks mirrored
           v.y := -v.y;
           v.x := -v.x;
+
           _vertices.Add(v);
           group_vertices.Add(v);
       end;
+      tris := TTriangleList.Create;
       for i := 0 to fg.face_count - 1 do begin
           triangle := InitVertex(fg.faces[i], 0);
-          _triangles.Add(triangle);
+          tris.Add(triangle);
           if fg.faces[i].ftype <> 3 then begin
               triangle := InitVertex(fg.faces[i], 2);
-              _triangles.Add(triangle);
+              tris.Add(triangle);
           end;
       end;
+      _triangles[fg_idx] := tris;
+      fg_idx += 1;
       group_vertices.Clear;
+      last_idx:=fg.fg_group_id;
   end;
   group_vertices.Free;
 end;
@@ -136,10 +156,10 @@ var
   hob: THobFile;
 begin
   hob := ParseHobFile(filename);
-  for i := 0 to hob.obj_count - 1 do
+  for i := 0 to 0 do
       HobReadMesh(hob.objects[i]);
   WriteLn('vertices: ', _vertices.Count);
-  WriteLn('faces (triangulated): ', _triangles.Count);
+  //WriteLn('faces (triangulated): ', _triangles.Count);
 end;
 
 
@@ -182,13 +202,13 @@ end;
 destructor TModel.Destroy;
 begin
   inherited Destroy;
-  _triangles.Free;
+//  _triangles.Free;
 end;
 
 procedure TModel.Load(const hob_filename, hmt_filename: string);
 begin
   _vertices := TVertexList.Create;
-  _triangles := TTriangleList.Create;
+  //_triangles := TTriangleList.Create;
   WriteLn('Loading mesh file ', hob_filename);
   HobRead(hob_filename);
   if FileExists(hmt_filename) then begin
@@ -265,7 +285,7 @@ end;
 procedure TModel.DrawGL(opts: TRenderOpts);
 var
   vert: TVertex;
-  i: integer;
+  i, k: integer;
 
   procedure DrawTri(tri: TTriangle);
   var
@@ -309,8 +329,10 @@ begin
   end;
 
   glColor3f(1, 1, 1);
-  for i := 0 to _triangles.Count - 1 do
-      DrawTri(_triangles[i]);
+  for k := 0 to Length(_triangles) - 1 do
+//k := min(opts.fg_to_draw, Length(_triangles) - 1);
+      for i := 0 to _triangles[k].Count - 1 do
+          DrawTri(_triangles[k][i]);
 end;
 
 end.
