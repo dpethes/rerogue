@@ -9,6 +9,7 @@ syntax: glob
 *.s
 *.res
 *.bat
+*.bak
 *.obj
 *.hob
 *.hmt
@@ -18,3 +19,6 @@ syntax: glob
 *.tex
 *.pgm
 *.png
+*.pnm
+*.tga
+*.raw
