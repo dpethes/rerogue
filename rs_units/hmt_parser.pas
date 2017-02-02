@@ -36,7 +36,7 @@ type
       textures: array of THmtTexture;
   end;
 
-  function ParseHmtFile(const fname: string): THmtFile;
+  function ParseHmtFile(f: TMemoryStream): THmtFile;
 
 //**************************************************************************************************
 implementation
@@ -138,15 +138,11 @@ begin
 end;
 
 
-function ParseHmtFile(const fname: string): THmtFile;
+function ParseHmtFile(f: TMemoryStream): THmtFile;
 var
-  f: TMemoryStream;
   hmt: THmtFile;
   i: Integer;
 begin
-  f := TMemoryStream.Create;
-  f.LoadFromFile(fname);
-
   //read main info
   hmt.material_count := f.ReadDWord;
   hmt.texture_offset := f.ReadDWord;
@@ -175,7 +171,6 @@ begin
       ReadTexture(hmt.textures[i], f);
   end;
 
-  f.Free;
   result := hmt;
 end;
 

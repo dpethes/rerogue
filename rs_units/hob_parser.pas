@@ -64,7 +64,7 @@ type
       objects: array of THobObject;
   end;
 
-function ParseHobFile(const fname: string): THobFile;
+function ParseHobFile(f: TMemoryStream): THobFile;
 
 //**************************************************************************************************
 implementation
@@ -323,16 +323,12 @@ begin
 end;
 
 
-function ParseHobFile(const fname: string): THobFile;
+function ParseHobFile(f: TMemoryStream): THobFile;
 var
-  f: TMemoryStream;
   hob: THobFile;
   i: integer;
   filepos: int64;
 begin
-  f := TMemoryStream.Create;
-  f.LoadFromFile(fname);
-
   hob.obj_count := f.ReadDWord;
   f.ReadDWord;  //sometimes face block start, but useless in general
 
@@ -353,7 +349,6 @@ begin
           f.Seek(filepos + 116, fsFromBeginning);
   end;
 
-  f.Free;
   result := hob;
 end;
 

@@ -4,7 +4,7 @@ unit hob_mesh;
 interface
 
 uses
-  Classes, SysUtils, gl, GLext, math, gvector,
+  Classes, SysUtils, gl, GLext, math, gvector, imgui,
   hob_parser, hmt_parser;
 
 type
@@ -50,12 +50,12 @@ type
       _materials: array of TMaterial;
       _hmt: THmtFile;
       _hmt_loaded: boolean;
-      procedure HmtRead(const filename: string);
-      procedure HobRead(const filename: string);
+      procedure HmtRead(stream: TMemoryStream);
+      procedure HobRead(stream: TMemoryStream);
       procedure HobReadMesh(const mesh: THobObject);
     public
       destructor Destroy; override;
-      procedure Load(const hob_filename, hmt_filename: string);
+      procedure Load(hob, hmt: TMemoryStream);
       procedure InitGL;
       procedure DrawGL(opts: TRenderOpts);
       procedure ExportObj(const obj_name: string);
@@ -150,12 +150,12 @@ begin
 end;
 
 
-procedure TModel.HobRead(const filename: string);
+procedure TModel.HobRead(stream: TMemoryStream);
 var
   i: Integer;
   hob: THobFile;
 begin
-  hob := ParseHobFile(filename);
+  hob := ParseHobFile(stream);
   for i := 0 to 0 do
       HobReadMesh(hob.objects[i]);
   WriteLn('vertices: ', _vertices.Size);
@@ -163,7 +163,7 @@ begin
 end;
 
 
-procedure TModel.HmtRead(const filename: string);
+procedure TModel.HmtRead(stream: TMemoryStream);
   procedure SetTexByName (var mat: TMaterial; const name: string);
   var
     i: integer;
@@ -192,7 +192,7 @@ procedure TModel.HmtRead(const filename: string);
 var
   i: integer;
 begin
-  _hmt := ParseHmtFile(filename);
+  _hmt := ParseHmtFile(stream);
   SetLength(_materials, _hmt.material_count);
   for i := 0 to _hmt.material_count - 1 do
       SetTexByName(_materials[i], _hmt.materials[i].name_string);
@@ -205,19 +205,15 @@ begin
 //  _triangles.Free;
 end;
 
-procedure TModel.Load(const hob_filename, hmt_filename: string);
+procedure TModel.Load(hob, hmt: TMemoryStream);
 begin
   _vertices := TVertexList.Create;
   //_triangles := TTriangleList.Create;
-  WriteLn('Loading mesh file ', hob_filename);
-  HobRead(hob_filename);
-  if FileExists(hmt_filename) then begin
-      WriteLn('Loading material file ', hmt_filename);
-      HmtRead(hmt_filename);
-      _hmt_loaded := true;
-  end else begin
-      _hmt_loaded := false;
-  end;
+  WriteLn('Loading mesh file');
+  HobRead(hob);
+  WriteLn('Loading material file');
+  HmtRead(hmt);
+  _hmt_loaded := true;
 end;
 
 procedure pnm_save(const fname: string; const p: pbyte; const w, h: integer);
@@ -286,6 +282,7 @@ procedure TModel.DrawGL(opts: TRenderOpts);
 var
   vert: TVertex;
   i, k: integer;
+  triangle_count: integer = 0;
 
   procedure DrawTri(tri: TTriangle);
   var
@@ -309,13 +306,12 @@ var
         glVertex3fv(@tri.vertices[k]);
     end;
     glEnd;
+    triangle_count += 1;
   end;
 
 begin
   if opts.wireframe then
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-  else
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
   glDisable(GL_TEXTURE_2D);
   if opts.points then begin
@@ -333,6 +329,13 @@ begin
 //k := min(opts.fg_to_draw, Length(_triangles) - 1);
       for i := 0 to _triangles[k].Size - 1 do
           DrawTri(_triangles[k][i]);
+
+ if opts.wireframe then
+     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+ igBegin('Mesh');
+   ImguiText(Format('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]));
+ igEnd;
 end;
 
 

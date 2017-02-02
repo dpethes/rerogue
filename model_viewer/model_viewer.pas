@@ -19,9 +19,9 @@ along with RS model viewer. If not, see <http://www.gnu.org/licenses/>.
 program model_viewer;
 
 uses
-  sysutils, math,
+  sysutils, classes, math, strutils, gvector,
   gl, glu, glext, sdl2, imgui, imgui_impl_sdlgl2,
-  hob_mesh;
+  rs_dat, hob_mesh;
 
 const
   SCR_W_fscrn = 1024;
@@ -35,11 +35,23 @@ const
   PitchIncrement = 0.5;
   MouseTranslateMultiply = 0.025;
 
+type
+  TFileListItem = record
+      name: string;
+      node_hob: PRsDatFileNode;
+      node_hmt: PRsDatFileNode;
+  end;
+  TFileList = specialize TVector<TFileListItem>;
+
 var
   g_window: PSDL_Window;
   g_ogl_context: TSDL_GLContext;
 
-  model: TModel;
+  g_rsdata: TRSDatFile;
+  g_filelist: TFileList;
+  g_model: TModel;
+  g_model_name: string;
+  g_model_loading_failed: Boolean;
 
   view: record
       rotation_angle: single;
@@ -132,9 +144,10 @@ begin
   if view.rotation_angle > 360 then
       view.rotation_angle -= 360;
 
-  model.DrawGL(view.opts);
+  if g_model <> nil then begin
+      g_model.DrawGL(view.opts);
+  end;
 
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   igRender;
   
   SDL_GL_SwapWindow(g_window);
@@ -272,7 +285,7 @@ begin
                     view.autorotate := not view.autorotate;
                     key_pressed.autorotate := true;
                 end;
-                   //model rendering opts
+                   //g_model rendering opts
             SDLK_w:
                 if not key_pressed.wireframe then begin
                     view.opts.wireframe := not view.opts.wireframe;
@@ -362,22 +375,137 @@ begin
   end; {case}
 end;
 
+procedure LoadMesh(item: TFileListItem);
+var
+  hob, hmt: TMemoryStream;
+begin
+  if g_model <> nil then
+      g_model.Free;
+  hob := TMemoryStream.Create;
+  hob.WriteBuffer(item.node_hob^.Data^, item.node_hob^.size);
+  hob.Seek(0, soBeginning);
+
+  hmt := TMemoryStream.Create;
+  hmt.WriteBuffer(item.node_hmt^.Data^, item.node_hmt^.size);
+  hmt.Seek(0, soBeginning);
+
+  g_model := TModel.Create;
+  g_model.Load(hob, hmt);
+  g_model.InitGL;
+end;
+
+
+procedure DrawGui;
+var
+  showtest: bool;
+  style: PImGuiStyle;
+  file_item: TFileListItem;
+  fitem_selected: Boolean = false;
+  selected_mesh_name: String;
+  selected_item: TFileListItem;
+begin
+  ImGui_ImplSdlGL2_NewFrame(g_window);
+
+  style := igGetStyle();
+  style^.WindowRounding := 0;
+
+  igBegin('Mesh');
+    if not g_model_loading_failed then begin
+        ImguiText(g_model_name);
+    end else
+        ImguiText('mesh loading failed :(');
+  igEnd;
+
+  igBegin('Rendering options');
+    igCheckbox('points', @view.opts.points);
+    igCheckbox('wireframe', @view.opts.wireframe);
+    igCheckbox('textures', @view.opts.textures);
+    igCheckbox('vertex colors', @view.opts.vcolors);
+    if g_model <> nil then
+        if igButton('Export to obj', ImVec2Init(0,0)) then
+            g_model.ExportObj('rs_exported.obj');
+  igEnd;
+
+  selected_mesh_name := EmptyStr;
+  igBegin('File list');
+    //todo filter
+    for file_item in g_filelist do begin
+        fitem_selected := file_item.name = g_model_name;
+        if ImguiSelectable(file_item.name, fitem_selected) then begin
+            selected_mesh_name := file_item.name;
+            selected_item := file_item;
+        end;
+    end;
+  igEnd;
+
+  //igShowTestWindow(@showtest);
+
+  if (selected_mesh_name <> EmptyStr) and (selected_mesh_name <> g_model_name) then begin
+      try
+        LoadMesh(selected_item);
+        g_model_name := selected_mesh_name;
+        g_model_loading_failed := false;
+      except
+        g_model_loading_failed := true;
+      end;
+  end;
+end;
+
+//we only care about HOB and HMT files
+procedure LoadMeshFilelist;
+  procedure AddFile(const path: string; const fnode, fnode_next: PRsDatFileNode);
+  var
+    item: TFileListItem;
+    name: String;
+    i: integer;
+  begin
+    if fnode^.is_directory then begin
+        for i := 0 to Length(fnode^.nodes)-2 do  //hob/hmt always go in pairs
+            AddFile(path + fnode^.Name + '/', fnode^.nodes[i], fnode^.nodes[i+1]);
+    end
+    else begin
+        name := fnode^.name;
+        if AnsiEndsText('hob', name) then begin
+            Assert(AnsiEndsText('hmt', fnode_next^.name), 'no HMT file!');
+            item.name := path + name;
+            item.node_hob := fnode;
+            item.node_hmt := fnode_next;
+            g_filelist.PushBack(item);
+        end;
+    end;
+  end;
+var
+  rs_files: TRsDatFileNodeList;
+  file_: TRsDatFileNode;
+begin
+  rs_files := g_rsdata.GetStructure();
+  for file_ in rs_files do begin
+      AddFile('', @file_, nil);
+  end;
+end;
+
+
 //******************************************************************************
 var
   sec, frames: integer;
   event: TSDL_Event;
   done: boolean;
-  hob_file, hmt_file, obj_file: string;
 
 begin
-  if Paramcount < 1 then begin
-      writeln('specify HOB file');
+  if not (FileExists(RS_DATA_HDR) and FileExists(RS_DATA_DAT)) then begin
+      writeln('RS data files not found!');
       exit;
   end;
-  hob_file := ParamStr(1);
-  hmt_file := StringReplace(hob_file, '.hob', '.hmt', [rfIgnoreCase]);
-  model := TModel.Create;
-  model.Load(hob_file, hmt_file);
+
+  writeln('loading data');
+  g_rsdata := TRSDatFile.Create(RS_DATA_HDR, RS_DATA_DAT);
+  g_rsdata.Parse();
+  g_filelist := TFileList.Create;
+  LoadMeshFilelist();
+
+  g_model := nil;
+  g_model_name := '';
+  g_model_loading_failed := false;
 
   writeln('Init SDL...');
   SDL_Init(SDL_INIT_VIDEO or SDL_INIT_TIMER);
@@ -387,11 +515,6 @@ begin
   SetGLWindowSize(g_window^.w, g_window^.h);
 
   InitView;
-  model.InitGL;
-
-  //export
-  //obj_file := StringReplace(hob_file, '.hob', '.obj', [rfIgnoreCase]);
-  //model.ExportObj(obj_file);
 
   sec := SDL_GetTicks;
   frames := 0;
@@ -399,15 +522,8 @@ begin
   key_pressed.wireframe := false;
   key_pressed.fullscreen := false;
   while not Done do begin
-      ImGui_ImplSdlGL2_NewFrame(g_window);
 
-      igBegin('rendering options');
-      igCheckbox('points', @view.opts.points);
-      igCheckbox('wireframe', @view.opts.wireframe);
-      igCheckbox('textures', @view.opts.textures);
-      igCheckbox('vertex colors', @view.opts.vcolors);
-      igEnd;
-
+      DrawGui;
       DrawGLScene;
 
       while SDL_PollEvent(@event) > 0 do
@@ -419,13 +535,16 @@ begin
           frames := 0;
           sec := SDL_GetTicks;
       end;
-      SDL_Delay(10);
+      SDL_Delay(5);
       //WindowScreenshot( surface^.w, surface^.h );
   end;
 
-  model.Free;
-
   WindowFree;
   SDL_Quit;
+
+  if g_model <> nil then
+      g_model.Free;
+  g_filelist.Free;
+  g_rsdata.Free;
 end.
 
