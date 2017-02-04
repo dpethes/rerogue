@@ -20,13 +20,14 @@ type
   TTile = packed record
       texture_index: word;
       unknown_attrib: byte;
-      unknown_lo: byte;
-      unknown_hi: byte;
-      unknown: array[0..24] of byte;
+      height_lo: byte;
+      height_hi: byte;
+      heights: array[0..24] of byte;
   end;
   PTile = ^TTile;
 
   THeightmap = record
+      y_scale: single;
       width, height: word;
       blk: pword;
       tile_count: integer;
@@ -101,7 +102,7 @@ Begin
   CloseFile (f);
 end;
 
-procedure convert_4bit_to_32bit(const indices: PByte; const w, h: Word; const image: PByte; const pal: TPalette_4bit);
+procedure convert_4bit_to_24bit(const indices: PByte; const w, h: Word; const image: PByte; const pal: TPalette_4bit);
 var
   i: Integer;
   index: integer;
@@ -172,7 +173,7 @@ begin
       image := getmem(TEX_WIDTH * TEX_HEIGHT * 3);
       Blockread(f, buf^, tex_size);
       Blockread(f, palette, palette_size);
-      convert_4bit_to_32bit(buf, TEX_WIDTH, TEX_HEIGHT, image, palette);
+      convert_4bit_to_24bit(buf, TEX_WIDTH, TEX_HEIGHT, image, palette);
       heightmap.textures[i] := image;
   end;
   freemem(buf);
@@ -202,9 +203,10 @@ begin
   reset(f, 1);
 
   //header
-  Blockread(f, buffer, 16); //15xB + 0x3f
+  Blockread(f, buffer, 12);
   Blockread(f, buffer, 4);
-  Blockread(f, buffer, 4);       //0x3f
+  Blockread(f, heightmap.y_scale, 4);
+  Blockread(f, buffer, 4);
   Blockread(f, tile_count, 2);   //tile count
   Blockread(f, buffer, 2);       //2B?
   Blockread(f, tile_offset, 4);  //tile offset
@@ -276,7 +278,7 @@ begin
       for x := 0 to heightmap.width - 1  do begin
           tile_idx := heightmap.blk[y * heightmap.width + x];
 
-          CopyTileToXY(image, @(heightmap.tiles[tile_idx].unknown),
+          CopyTileToXY(image, @(heightmap.tiles[tile_idx].heights),
                               x * TILE_WIDTH, (heightmap.height - y - 1) * TILE_WIDTH, heightmap.width * TILE_WIDTH);
       end;
   end;
