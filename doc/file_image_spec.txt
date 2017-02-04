@@ -15,7 +15,7 @@ attributes {
      -5 ? ov_rdir
   1B 0, 0x80/128
 }
-4B zeros
+4B RGBA transparent color?
 4B ?
 xB pixels
 (DSO - DS)B description string (zero term.)

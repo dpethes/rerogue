@@ -54,22 +54,13 @@ end;
 
 
 procedure ReadTexture(var tex: THmtTexture; var f: TMemoryStream);
-const
-  ImageDescription: array[0..5] of TImageDescription = (
-      (palette_entries: 16;  sample_bits: 4),
-      (palette_entries: 256; sample_bits: 8),
-      (palette_entries: 0; sample_bits: 16),
-      (palette_entries: 0; sample_bits: 32),
-      (palette_entries: 0; sample_bits: 4),
-      (palette_entries: 0; sample_bits: 16)
-    );
 var
   image: TRSImage;
   buf: array[0..27] of byte;
   description: TImageDescription;
-  bpp: byte;
   color_rgba: integer;
   pos: int64;
+  u0, u1, bits_per_sample: byte;
 begin
   tex.data_offset := f.ReadDWord;
   f.ReadBuffer(buf, 28);
@@ -78,10 +69,10 @@ begin
   tex.width := f.ReadWord;
   tex.height := f.ReadWord;
 
-  f.ReadByte; //0x01
-  bpp := f.ReadByte;
+  u0 := f.ReadByte; //always 1 ?
+  bits_per_sample := f.ReadByte;
   image.type_ := f.ReadByte;
-  f.ReadByte;
+  u1 := f.ReadByte;
   color_rgba := f.ReadDWord;
 
   pos := f.Position;
@@ -99,10 +90,11 @@ begin
 
   writeln('name: ', tex.name_string);
   writeln('size: ', tex.width, 'x', tex.height);
-  writeln('subtype: ', image.type_, ' bpp: ', bpp);
+  writeln('subtype: ', image.type_);
   writeln('sample bits: ', image.sampleBits);
   writeln('palette offset: ', tex.palette_offset);
   writeln('data offset: ', tex.data_offset);
+  writeln('u0:', u0, ' u1:', u1);
 
   if tex.palette_offset > 0 then begin
       writeln('palette entries: ', image.paletteEntries);
@@ -146,9 +138,6 @@ begin
   //read main info
   hmt.material_count := f.ReadDWord;
   hmt.texture_offset := f.ReadDWord;
-  f.Seek(hmt.texture_offset, TSeekOrigin.soBeginning);
-  hmt.texture_count := f.ReadDWord;
-  f.Seek(8, TSeekOrigin.soBeginning);
 
   //read materials
   writeln('materials: ', hmt.material_count);
@@ -157,18 +146,15 @@ begin
       ReadMaterial(hmt.materials[i], f);
   end;
 
-  if hmt.texture_count = 0 then begin
-      result := hmt;
-      f.Free;
-      exit;
-  end;
-
   //read textures
+  f.Seek(hmt.texture_offset, TSeekOrigin.soBeginning);
+  hmt.texture_count := f.ReadDWord;
   writeln('textures: ', hmt.texture_count);
-  f.Seek(hmt.texture_offset + 4, TSeekOrigin.soBeginning);
-  SetLength(hmt.textures, hmt.texture_count);
-  for i := 0 to hmt.texture_count - 1 do begin
-      ReadTexture(hmt.textures[i], f);
+  if hmt.texture_count > 0 then begin
+      SetLength(hmt.textures, hmt.texture_count);
+      for i := 0 to hmt.texture_count - 1 do begin
+          ReadTexture(hmt.textures[i], f);
+      end;
   end;
 
   result := hmt;

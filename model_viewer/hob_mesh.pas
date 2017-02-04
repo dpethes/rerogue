@@ -156,6 +156,8 @@ var
   hob: THobFile;
 begin
   hob := ParseHobFile(stream);
+  if hob.obj_count = 0 then exit;
+
   for i := 0 to 0 do
       HobReadMesh(hob.objects[i]);
   WriteLn('vertices: ', _vertices.Size);

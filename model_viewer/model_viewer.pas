@@ -392,6 +392,9 @@ begin
   g_model := TModel.Create;
   g_model.Load(hob, hmt);
   g_model.InitGL;
+
+  hob.Free;
+  hmt.Free;
 end;
 
 

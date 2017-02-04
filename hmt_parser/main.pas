@@ -63,7 +63,7 @@ begin
   case image.type_ of
       0, 1: pnm_save(outname + '.pnm', image.pixels, image.width, image.height);
       3: WriteTga32b(outname + '.tga', image.pixels, image.width, image.height, image.width * image.height * 4);
-      4: pgm_save(outname + '.pgm', image.pixels, image.width, image.height);
+      4, 5: pgm_save(outname + '.pgm', image.pixels, image.width, image.height);
   else
       writeln('image type was not saved: ', image.type_);
   end;
@@ -73,6 +73,7 @@ var
   fname: string;
   hmt: THmtFile;
   i: integer;
+  stream: TMemoryStream;
 
 begin
   if ParamCount < 1 then begin
@@ -83,10 +84,17 @@ begin
   fname := ParamStr(1);
   writeln('parsing file: ', fname);
   try
-      hmt := ParseHmtFile(fname);
+      stream := TMemoryStream.Create;
+      stream.LoadFromFile(fname);
+
+      hmt := ParseHmtFile(stream);
       writeln('saving textures');
       for i := 0 to hmt.texture_count - 1 do
-          SaveImage(hmt.textures[i].image, fname + '_' + hmt.textures[i].name_string);
+          SaveImage(hmt.textures[i].image, '_' + fname + '_' + hmt.textures[i].name_string);
+
+      hmt.materials := nil;
+      if hmt.texture_count > 0 then hmt.textures := nil;
+      stream.Free;
   except
       writeln('parsing failed!');
   end;

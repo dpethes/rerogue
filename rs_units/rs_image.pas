@@ -36,7 +36,7 @@ const
       (palette_entries: 0; sample_bits: 16),
       (palette_entries: 0; sample_bits: 32),
       (palette_entries: 0; sample_bits: 4),
-      (palette_entries: 0; sample_bits: 16)
+      (palette_entries: 0; sample_bits: 8)
     );
 
 procedure LoadPalette(var image: TRSImage; var f: TMemoryStream);
@@ -167,6 +167,8 @@ var
 begin
   sample_bits := image.sampleBits;
   size := image.width * image.height * sample_bits div 8;
+  Assert(f.Size >= f.Position + size, 'fix size/sample');
+
   image.samples := getmem(size);
   f.ReadBuffer(image.samples^, size);
   if image.type_ = 2 then

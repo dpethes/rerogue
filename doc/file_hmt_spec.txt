@@ -22,13 +22,14 @@ TC * texture entry 52B
   2B int width
   2B int height
   8B texture format {
-    1B int ? 0x01
-    1B int ?
-    1B subtype:
+    1B int : always 1?
+    1B int : bits per sample?
+    1B int : subtype:
        -0 - palette 16x3B RGB, 4bit per pixel
        -1 - 256x3B palette RGB, 8bit per pixel
        -3 - RGBA 32bpp
        -4 - greyscale, 4bpp
+       -5 - grayscale, 8bpp
     1B int ? 0, 0x40, 0x80
     4B RGBA transparent color?
   }
