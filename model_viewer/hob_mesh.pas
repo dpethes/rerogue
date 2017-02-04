@@ -175,11 +175,11 @@ procedure TModel.HmtRead(stream: TMemoryStream);
     for i := 0 to _hmt.texture_count - 1 do
         if _hmt.textures[i].name_string = name then begin
             tex := _hmt.textures[i];
-            if not (tex.image.type_ in [0,1,3,4]) then
-                break;
 
             mat.bpp := 24;
-            if tex.image.type_ = 4 then
+            if tex.image.type_ = 3 then
+                mat.bpp := 32;
+            if tex.image.type_ in [4,5] then
                 mat.bpp := 8;
 
             mat.width := tex.width;
@@ -255,10 +255,13 @@ procedure TModel.InitGL;
     if mat.bpp = 24 then begin
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, mat.width, mat.height, 0, GL_RGB, GL_UNSIGNED_BYTE, mat.pixels);
         //pnm_save(IntToStr(mat.gl_tex_id)+'.pnm', mat.pixels, mat.width, mat.height);
-    end;
-    if mat.bpp = 8 then begin
+    end
+    else if mat.bpp = 8 then begin
         glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, mat.width, mat.height, 0, GL_RED, GL_UNSIGNED_BYTE, mat.pixels);
         //pgm_save(IntToStr(mat.gl_tex_id)+'.pgm', mat.pixels, mat.width, mat.height);
+    end
+    else if mat.bpp = 32 then begin
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, mat.width, mat.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mat.pixels);
     end;
 
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );

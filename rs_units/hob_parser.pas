@@ -97,10 +97,7 @@ var
   file_pos: integer;
   color: integer;
 begin
-  zero := f.ReadDWord;
-  if (zero <> 0) then
-      writeln('unusual file: zero');
-  zero := f.ReadDWord;
+  zero := f.ReadQWord;
   if (zero <> 0) then
       writeln('unusual file: zero');
   file_pos := f.ReadDWord;
@@ -209,15 +206,11 @@ var fgid: integer = 0;
 
 procedure ReadFaceGroup(var fg: THobFaceGroup; var f: TMemoryStream);
 var
-  filepos: int64;
   fnum: single;
   i: Integer;
   zero: int64;
   fg_next, fg_end: integer;
 begin
-  //save file position before seeking to face/vertex data and restore it, to read next group properly
-  filepos := f.Position;
-
   //read group/meshdef0
   fg_next := f.ReadDWord;
   f.Seek(4*2, fsFromCurrent);  //unknown
@@ -238,7 +231,7 @@ begin
       //writeln(fnum);
   end;
   fg.fg_group_id := f.ReadDWord;
-  for i := 1 to (3*4 + 3*4 + 4*4) div 4 do begin
+  for i := 1 to (3+3+4) do begin  //unknown floats
       f.ReadBuffer(fnum, 4);
       //writeln(fnum);
   end;
@@ -295,12 +288,15 @@ begin
   mesh.face_group_header_offset := f.ReadDWord;
   mesh.face_group_header2_offset := f.ReadDWord;
 
+  //TODO skipped stuff
+
   writeln('object: ', NameToString(mesh.name));
   writeln('face group offset: ', mesh.face_group_offset);
 
-  //get face group count
+  //Facegroup header
+
   f.Seek(mesh.face_group_header_offset, fsFromBeginning); //16B zero
-  mesh.face_group_count  := f.ReadWord;  //which?
+  mesh.face_group_count  := f.ReadWord;  //face group count - which?
   mesh.face_group_count0 := f.ReadWord;
   if mesh.face_group_count <> mesh.face_group_count0 then begin
       writeln('facegroup counts don''t match!: ', mesh.face_group_count, mesh.face_group_count0:5);
