@@ -5,7 +5,7 @@ unit rsdat_pack;
 interface
 
 uses
-  Classes, SysUtils, rsdat_common;
+  Classes, SysUtils, rs_dat;
 
 type
 
@@ -13,15 +13,15 @@ type
 
   TRSDatPacker = class
   private
-      Sections: array of TSection;
+      Sections: array of TRsHdrSection;
       Data: TMemoryStream;
 
       procedure FreeSections;
       procedure ReadSectionFiles(const basepath: string);
       procedure WriteData(path: string);
       procedure WriteHeader(path: string);
-      procedure WriteNodeData(node: PFileNode);
-      procedure WriteFileEntries(node: PFileNode; const base_offset: integer);
+      procedure WriteNodeData(node: PRsDatFileNode);
+      procedure WriteFileEntries(node: PRsDatFileNode; const base_offset: integer);
 
   public
       procedure PackDirectory(const path: string);
@@ -32,9 +32,9 @@ type
 //**************************************************************************************************
 implementation
 
-procedure ReadFileNodes(parent: PFileNode; path: string);
+procedure ReadFileNodes(parent: PRsDatFileNode; path: string);
 var
-  node: PFileNode;
+  node: PRsDatFileNode;
   info: TSearchRec;
   n: integer;
   f: file;
@@ -80,7 +80,7 @@ begin
   end;
 end;
 
-procedure FreeFileNodes(node: PFileNode; const no_disposing: boolean = false);
+procedure FreeFileNodes(node: PRsDatFileNode; const no_disposing: boolean = false);
 var
   i: integer;
 begin
@@ -99,8 +99,8 @@ procedure TRSDatPacker.ReadSectionFiles(const basepath: string);
 var
   n: integer;
   info: TSearchRec;
-  section: TSection;
-  node: TFileNode;
+  section: TRsHdrSection;
+  node: TRsDatFileNode;
 begin
   n := 0;
   if FindFirst(basepath + '*', faDirectory, Info) = 0 then begin
@@ -136,7 +136,7 @@ begin
   Sections := nil;
 end;
 
-procedure TRSDatPacker.WriteNodeData(node: PFileNode);
+procedure TRSDatPacker.WriteNodeData(node: PRsDatFileNode);
 var
   i: integer;
 begin
@@ -161,9 +161,9 @@ TFileEntry = packed record
     sub_entry_size: word;
     filename: array[0..15] of char;
 end; }
-procedure TRSDatPacker.WriteFileEntries(node: PFileNode; const base_offset: integer);
+procedure TRSDatPacker.WriteFileEntries(node: PRsDatFileNode; const base_offset: integer);
 var
-  entry: TFileEntry;
+  entry: TRsDatFileEntry;
   name: string;
   i: integer;
 begin
@@ -175,9 +175,9 @@ begin
       entry.sub_entry_size := (node^.subentries_count + 1) * 32;
 
   if node^.is_directory then
-      entry.type_flag := FEDirectoryFlag
+      entry.type_flag := RS_DATA_FEDirectoryFlag
   else
-      entry.type_flag := %00000010;
+      entry.type_flag := RS_DATA_FEFileFlag;
 
   writeln(stderr, format('name: %s size: %d dir: %s subsize: %d',
                   [node^.Name, entry.length, BoolToStr(node^.is_directory), entry.sub_entry_size]));
@@ -200,7 +200,7 @@ var
   i, k: integer;
   head: pinteger;
   entries: integer;
-  section: TSection;
+  section: TRsHdrSection;
 begin
   Data := TMemoryStream.Create;
   Data.Size := 1 shl 20;
@@ -208,7 +208,7 @@ begin
       section := Sections[i];
 
       Writeln('writing section: ', section.name);
-      section.offset := Data.Position;
+      section.dat_offset := Data.Position;
       Data.WriteQWord(0);  //offset + size placeholder
 
       Writeln('writing file data');
@@ -216,13 +216,13 @@ begin
           WriteNodeData(section.root.nodes[k]);
 
       entries := section.root.subentries_count;
-      head := pinteger (pbyte(Data.Memory) + section.offset);
-      head^ := Data.Position - section.offset;
+      head := pinteger (pbyte(Data.Memory) + section.dat_offset);
+      head^ := Data.Position - section.dat_offset;
       head += 1;
       head^ := entries * 32;
       Writeln('writing file entries: ', entries);
       for k := 0 to Length(section.root.nodes) - 1 do
-          WriteFileEntries(section.root.nodes[k], section.offset);
+          WriteFileEntries(section.root.nodes[k], section.dat_offset);
 
       //align?
       for k := 1 to 4 - (Data.Position mod 4) do
@@ -249,7 +249,7 @@ begin
           name[k] := byte( section_name[k] );
 
       Blockwrite(f, name, 28);
-      Blockwrite(f, Sections[i].offset, 4);
+      Blockwrite(f, Sections[i].dat_offset, 4);
   end;
   CloseFile(f);
 end;

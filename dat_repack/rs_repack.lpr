@@ -1,23 +1,22 @@
 program rs_repack;
 
 uses
-  sysutils, rsdat, rsdat_pack;
+  sysutils, rs_dat, rsdat_pack;
 
 procedure UnpackData(const basedir: string);
 var
   dat: TRSDatFile;
   fhdr, fdat: string;
 begin
-  fhdr := basedir + 'DATA.HDR';
-  fdat := basedir + 'DATA.DAT';
+  fhdr := basedir + RS_DATA_HDR;
+  fdat := basedir + RS_DATA_DAT;
   if not FileExists(fhdr) or not FileExists(fdat) then begin
       writeln('missing input files ', fhdr, ' or ', fdat);
       exit;
   end;
 
-  dat := TRSDatFile.Create;
-  dat.ReadHeader(fhdr);
-  dat.ReadSections(fdat);
+  dat := TRSDatFile.Create(fhdr, fdat);
+  dat.Parse();
   dat.WriteFilesToDirectory(basedir);
   dat.Free;
 end;

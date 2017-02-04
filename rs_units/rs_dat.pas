@@ -15,6 +15,7 @@ const
   RS_DATA_HDR = 'DATA.HDR';
   RS_DATA_DAT = 'DATA.DAT';
   RS_DATA_FEDirectoryFlag = %10000000;
+  RS_DATA_FEFileFlag = %00000010;
 
 type
   //data file entry

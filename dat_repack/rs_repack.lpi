@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="9"/>
+    <Version Value="10"/>
     <PathDelim Value="\"/>
     <General>
       <Flags>
@@ -17,9 +17,6 @@
     <i18n>
       <EnableI18N LFM="False"/>
     </i18n>
-    <VersionInfo>
-      <StringTable ProductVersion=""/>
-    </VersionInfo>
     <BuildModes Count="1">
       <Item1 Name="Default" Default="True"/>
     </BuildModes>
@@ -32,27 +29,19 @@
         <CommandLineParams Value="p r:\rogue_data\"/>
       </local>
     </RunParams>
-    <Units Count="4">
+    <Units Count="3">
       <Unit0>
         <Filename Value="rs_repack.lpr"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="rs_repack"/>
       </Unit0>
       <Unit1>
-        <Filename Value="rsdat.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="rsdat"/>
-      </Unit1>
-      <Unit2>
-        <Filename Value="rsdat_common.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="rsdat_common"/>
-      </Unit2>
-      <Unit3>
         <Filename Value="rsdat_pack.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="rsdat_pack"/>
-      </Unit3>
+      </Unit1>
+      <Unit2>
+        <Filename Value="..\rs_units\rs_dat.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit2>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -63,6 +52,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
+      <OtherUnitFiles Value="..\rs_units"/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <CodeGeneration>
@@ -73,12 +63,6 @@
         <StackChecks Value="True"/>
       </Checks>
     </CodeGeneration>
-    <Other>
-      <CompilerMessages>
-        <MsgFileName Value=""/>
-      </CompilerMessages>
-      <CompilerPath Value="$(CompPath)"/>
-    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="3">
