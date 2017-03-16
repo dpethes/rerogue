@@ -63,6 +63,7 @@ type
     public
       property TileWidth: word read heightmap.width;
       property TileHeight: word read heightmap.height;
+      property MapScale: single read heightmap.y_scale;
 
       procedure LoadFromFiles(const hmp, tex, texmap: string);
       procedure ExportToObj(const objfname: string);
@@ -300,13 +301,15 @@ var
   vert: TVertex3f;
   width_half, height_half: integer;
   i: integer;
+  height_scale: single;
 begin
   vertex_count := heightmap.width * 4 * heightmap.height * 4;
   va_size := vertex_count * SizeOf(TVertex3f);
   vertex_array := getmem(va_size);
 
-  width_half  := heightmap.width * 2;
+  width_half  := heightmap.width * 2;     //half of width & height in vertex count
   height_half := heightmap.height * 2;
+  height_scale := heightmap.y_scale * 2 / 10;  //this is just a guesswork, no idea what's the real calculation
 
   for y := 0 to heightmap.height * 4 - 1 do
       for x := 0 to heightmap.width * 4 - 1 do begin
@@ -315,7 +318,7 @@ begin
           vert.u := x / (heightmap.width  * 4);
           vert.v := y / (heightmap.height * 4);
           i := y * heightmap.width * 4 + x;
-          vert.y := (255 - height_texture[i]) * 0.01;  //inverse for mos eisley / lv0
+          vert.y := (255 - height_texture[i]) * height_scale;
           vertex_array[i] := vert;
       end;
 end;
@@ -360,13 +363,13 @@ begin
   //vertices
   for i := 0 to vertex_count - 1 do begin
       v := vertex_array[i];
-      writeln(f, 'v ', v.x:10:6, ' ', v.y:10:6, ' ', v.z:10:6);
+      writeln(f, 'v ', v.x:0:2, ' ', v.y:0:2, ' ', v.z:0:2);
   end;
 
   //uv-s
   for i := 0 to vertex_count - 1 do begin
       v := vertex_array[i];
-      writeln(f, 'vt ', v.u:10:6, ' ', v.v:10:6);
+      writeln(f, 'vt ', v.u:0:4, ' ', v.v:0:4);
   end;
 
   //select material

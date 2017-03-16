@@ -33,6 +33,7 @@ begin
 
   writeln('world loaded');
   writeln('tile size: ', world.TileWidth, 'x', world.TileHeight);
+  writeln('scale: ', world.MapScale:7:3);
 
   world.ExportToObj('heightmap.obj');
   world.ExportToRaw('heightmap.raw');
