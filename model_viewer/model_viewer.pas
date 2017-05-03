@@ -24,11 +24,8 @@ uses
   rs_dat, hob_mesh;
 
 const
-  SCR_W_fscrn = 1024;
-  SCR_H_fscrn = 768;
   SCR_W_INIT = 1280;
   SCR_H_INIT = 720;
-  SCREEN_BPP = 0;
   RotationAngleIncrement = 1;
   ZoomIncrement = 0.3;
   MouseZoomDistanceMultiply = 0.15;
@@ -155,8 +152,6 @@ end;
 
 
 procedure WindowInit(w_width, w_height: integer);
-const
-  renderer_index = -1; //The index of the rendering driver to initialize: -1 to initialize the first one supporting the requested flags
 var
   ver: TSDL_Version;
   x, y: integer;
@@ -400,7 +395,6 @@ end;
 
 procedure DrawGui;
 var
-  showtest: bool;
   style: PImGuiStyle;
   file_item: TFileListItem;
   fitem_selected: Boolean = false;
@@ -440,8 +434,6 @@ begin
         end;
     end;
   igEnd;
-
-  //igShowTestWindow(@showtest);
 
   if (selected_mesh_name <> EmptyStr) and (selected_mesh_name <> g_model_name) then begin
       try
