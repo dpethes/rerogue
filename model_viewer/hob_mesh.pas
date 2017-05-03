@@ -4,7 +4,7 @@ unit hob_mesh;
 interface
 
 uses
-  Classes, SysUtils, gl, GLext, math, gvector, imgui,
+  Classes, SysUtils, gl, GLext, math, gvector, fpimgui,
   hob_parser, hmt_parser;
 
 type
@@ -339,9 +339,9 @@ begin
  if opts.wireframe then
      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
- igBegin('Mesh');
-   ImguiText(Format('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]));
- igEnd;
+ ImGui.Begin_('Mesh');
+ ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
+ ImGui.End_;
 end;
 
 

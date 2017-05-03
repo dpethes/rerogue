@@ -60,11 +60,11 @@
         <IsPartOfProject Value="True"/>
       </Unit5>
       <Unit6>
-        <Filename Value="imgui\imgui.pas"/>
+        <Filename Value="imgui\fpimgui.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit6>
       <Unit7>
-        <Filename Value="imgui\imgui_impl_sdlgl2.pas"/>
+        <Filename Value="imgui\fpimgui_impl_sdlgl2.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit7>
       <Unit8>

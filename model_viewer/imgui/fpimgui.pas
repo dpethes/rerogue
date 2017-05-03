@@ -1,15 +1,17 @@
 {
 Bindings for dear imgui (AKA ImGui) - a bloat-free graphical user interface library for C++
 Based on cimgui+ImGui 1.49/1.50
+Not all functions were tested.
 }
-unit imgui;
+unit fpimgui;
+{$mode objfpc}{$H+}
 
 interface
 
-{$IFDEF FPC}
+uses
 {$PACKRECORDS C}
-uses dynlibs;
-{$ENDIF}
+dynlibs,   //for SharedSuffix
+sysutils;  //for Format()
 
 const
   ImguiLibName = 'cimgui.' + SharedSuffix;
@@ -60,6 +62,8 @@ type
   ImGuiSetCond = longint;
   ImGuiInputTextFlags = longint;
   ImGuiSelectableFlags = longint;
+
+  { Enums }
 
   ImGuiTreeNodeFlags = (
       Selected = 1 shl 0,
@@ -144,8 +148,7 @@ type
       //ImGuiCol_COUNT  - unnecessary
   );
 
-
-  { structs }
+  { Structs }
   ImGuiStyle = record
       Alpha : single;
       WindowPadding : ImVec2;
@@ -299,7 +302,7 @@ procedure igShowMetricsWindow(opened: Pbool); cdecl; external ImguiLibName;
 
 { Window }
 function  igBegin(Name: PChar; p_open: Pbool = nil; flags: ImGuiWindowFlags = 0): bool; cdecl; external ImguiLibName;
-function  igBegin2(Name: PChar; p_open: Pbool; size_on_first_use: ImVec2; bg_alpha: single; flags: ImGuiWindowFlags): bool; cdecl; external ImguiLibName;
+  // OBSOLETE function  igBegin2(Name: PChar; p_open: Pbool; size_on_first_use: ImVec2; bg_alpha: single; flags: ImGuiWindowFlags): bool; cdecl; external ImguiLibName;
 procedure igEnd; cdecl; external ImguiLibName;
 function  igBeginChild(str_id: PChar; size: ImVec2; border: bool; extra_flags: ImGuiWindowFlags): bool; cdecl; external ImguiLibName;
 function  igBeginChildEx(id: ImGuiID; size: ImVec2; border: bool; extra_flags: ImGuiWindowFlags): bool; cdecl; external ImguiLibName;
@@ -397,7 +400,7 @@ function  igGetTextLineHeight: single; cdecl; external ImguiLibName;
 function  igGetTextLineHeightWithSpacing: single; cdecl; external ImguiLibName;
 function  igGetItemsLineHeightWithSpacing: single; cdecl; external ImguiLibName;
 
-{Columns }
+{ Columns }
 procedure igColumns(Count: longint; id: PChar; border: bool); cdecl; external ImguiLibName;
 procedure igNextColumn; cdecl; external ImguiLibName;
 function  igGetColumnIndex: longint; cdecl; external ImguiLibName;
@@ -431,7 +434,7 @@ procedure igTextDisabled(fmt: PChar); cdecl; external ImguiLibName;
 procedure igTextWrapped(fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igTextWrapped(fmt: PChar); cdecl; external ImguiLibName;
 //procedure igTextWrappedV(fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
-procedure igTextUnformatted(Text: PChar; text_end: PChar); cdecl; external ImguiLibName;
+procedure igTextUnformatted(text: PChar; text_end: PChar); cdecl; external ImguiLibName;
 procedure igLabelText(_label: PChar; fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igLabelText(_label: PChar; fmt: PChar); cdecl; external ImguiLibName;
 //procedure igLabelTextV(_label:Pchar; fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
@@ -775,8 +778,47 @@ procedure ImDrawList_UpdateTextureID(list: PImDrawList); cdecl; external ImguiLi
 //binding helpers
 function ImVec2Init(const x, y: single): Imvec2; inline;
 
-procedure ImguiText(const s: string); inline;
-function  ImguiSelectable(const s: string; const selected: boolean): boolean; inline;
+{ Static ImGui class, wraps external igSomething calls
+  Used for:
+  - having original's C++ styled API
+  - adding default parameters
+  - using native strings
+  Things to consider:
+  - perhaps the methods could be inlined to prevent calling overhead
+  - use var parameters instead of pointers where possible
+}
+type
+  ImGui = class
+  public
+    class function  GetIO(): PImGuiIO;
+    class function  GetStyle(): PImGuiStyle;
+    class function  GetDrawData(): PImDrawData;
+    class procedure NewFrame;
+    class procedure Render;
+    class procedure Shutdown;
+    class procedure ShowUserGuide;
+    class procedure ShowStyleEditor(ref: PImGuiStyle);
+    class procedure ShowTestWindow(p_open: Pbool = nil);
+    class procedure ShowMetricsWindow(p_open: Pbool = nil);
+
+    { Window }
+    class function  Begin_(name: string; p_open: Pbool = nil; flags: ImGuiWindowFlags = 0): Boolean;
+    class procedure End_;
+
+    { Widgets }
+    { Text() just wraps TextUnformatted, while it originally takes C-style string with formatting params.
+      The overloaded version with variable params uses native Format() from sysutils }
+    class procedure Text(const text_: string);
+    class procedure Text(const Fmt: string; const Args: array of Const);
+    class procedure TextUnformatted(const _text: string);
+    class procedure TextUnformatted(const _text: PChar; const text_end: PChar = nil);
+    class function  Button(_label: string; size: ImVec2): bool;
+    class function  Button(_label: string): bool; //overload for default size (0,0)
+
+    { Widgets: Selectable / Lists }
+    class function  Selectable(_label: string; selected: bool; flags: ImGuiSelectableFlags; size: ImVec2): bool;
+    class function  Selectable(_label: string; selected: bool; flags: ImGuiSelectableFlags = 0): bool; //overload for default size (0,0)
+  end;
 
 implementation
 
@@ -786,14 +828,37 @@ begin
   result.y := y;
 end;
 
-procedure ImguiText(const s: string);
-begin
-  igText(pchar(s));
-end;
+{ ImGui
+  keep functions short, they're mostly just wrappers. Inlining begin ... end is ok
+}
 
-function ImguiSelectable(const s: string; const selected: boolean): boolean;
-begin
-  result := igSelectable(pchar(s), selected, 0, ImVec2Init(0,0));
-end;
+class function ImGui.GetIO: PImGuiIO; begin result := igGetIO end;
+class function ImGui.GetStyle: PImGuiStyle; begin result := igGetStyle end;
+class function ImGui.GetDrawData: PImDrawData; begin result := igGetDrawData end;
+class procedure ImGui.NewFrame; begin igNewFrame end;
+class procedure ImGui.Render; begin igRender end;
+class procedure ImGui.Shutdown; begin igShutdown end;
+class procedure ImGui.ShowUserGuide; begin igShowUserGuide end;
+class procedure ImGui.ShowStyleEditor(ref: PImGuiStyle); begin igShowStyleEditor(ref) end;
+class procedure ImGui.ShowTestWindow(p_open: Pbool); begin igShowTestWindow(p_open) end;
+class procedure ImGui.ShowMetricsWindow(p_open: Pbool); begin ShowMetricsWindow(p_open) end;
+
+class function ImGui.Begin_(name: string; p_open: Pbool; flags: ImGuiWindowFlags): Boolean;
+begin result := igBegin(pchar(name), p_open, flags); end;
+class procedure ImGui.End_; begin igEnd end;
+
+class procedure ImGui.Text(const text_: string); begin TextUnformatted(text_) end;
+class procedure ImGui.Text(const Fmt: string; const Args: array of const); begin TextUnformatted(Format(fmt, args)) end;
+class procedure ImGui.TextUnformatted(const _text: string); begin igTextUnformatted(pchar(_text), nil) end;
+class procedure ImGui.TextUnformatted(const _text: PChar; const text_end: PChar); begin igTextUnformatted(_text, text_end) end;
+
+class function ImGui.Button(_label: string; size: ImVec2): bool; begin result := igButton(pchar(_label), size) end;
+class function ImGui.Button(_label: string): bool; begin result := Button(_label, ImVec2Init(0,0)) end;
+
+class function ImGui.Selectable(_label: string; selected: bool; flags: ImGuiSelectableFlags; size: ImVec2): bool;
+begin result := igSelectable(pchar(_label), selected, flags, size) end;
+class function ImGui.Selectable(_label: string; selected: bool; flags: ImGuiSelectableFlags): bool;
+begin result := Selectable(_label, selected, flags, ImVec2Init(0,0)); end;
+
 
 end.

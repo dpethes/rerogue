@@ -20,7 +20,7 @@ program model_viewer;
 
 uses
   sysutils, classes, math, strutils, gvector,
-  gl, glu, glext, sdl2, imgui, imgui_impl_sdlgl2,
+  gl, glu, glext, sdl2, fpimgui, fpimgui_impl_sdlgl2,
   rs_dat, hob_mesh;
 
 const
@@ -392,7 +392,6 @@ begin
   hmt.Free;
 end;
 
-
 procedure DrawGui;
 var
   style: PImGuiStyle;
@@ -408,9 +407,9 @@ begin
 
   igBegin('Mesh');
     if not g_model_loading_failed then begin
-        ImguiText(g_model_name);
+        Imgui.Text(g_model_name);
     end else
-        ImguiText('mesh loading failed :(');
+        Imgui.Text('mesh loading failed :(');
   igEnd;
 
   igBegin('Rendering options');
@@ -428,7 +427,7 @@ begin
     //todo filter
     for file_item in g_filelist do begin
         fitem_selected := file_item.name = g_model_name;
-        if ImguiSelectable(file_item.name, fitem_selected) then begin
+        if Imgui.Selectable(file_item.name, fitem_selected) then begin
             selected_mesh_name := file_item.name;
             selected_item := file_item;
         end;
