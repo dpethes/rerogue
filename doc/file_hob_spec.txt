@@ -1,122 +1,126 @@
 HOB
 {
-  4B object count OF. 0 in empty files
-  4B simple offset to vertices/faces - doesn't work all the time. Probably useless?
-  array[OF] of object header
-  array[OF] of facegroup header 
-  ..
-  array[] of vertices
+  4B int : object count OF. 0 in empty files
+  4B int : simple offset to vertices/faces - doesn't work all the time. Probably useless?
+  array[OF] of Object
+  array[OF] of Facegroup header 
+  array[] of Facegroup/meshdef0 
+  array[] of Facegroup/meshdef1
+  array[] of Face block
+  array[] of Vertices
 }
 
-OF * object header [116B] 
+Object [116B] 
 {
-  16B name
-  4B int facegroups offset
-  4B int facegroup header offset
-  4B int facegroup header 2 offset
+  16B array of char : name
+  4B int   : facegroups offset
+  4B int   : facegroup header offset
+  4B int   : facegroup header 2 offset
   12B zero
-  4B int ? 94, 0xD4
-  4B int ? 98, 0x100
-  4B int ? 9C, 0x104
-  4B float ?:
+  4B int   : ? 94, 0xD4
+  4B int   : ? 98, 0x100
+  4B int   : ? 9C, 0x104
+  4B float : ?
       -bark_moon, cldcar: 1.0
       -sky, e_cor: 0.2 
       -wmvwing: 1.25
   12B zero
-  5x4B floats ?
+  5x 4B float : ?
   4B int offset before 0xFFFFFFFF header end marker
-  6x 4B float ?
+  6x 4B float : ?
 }
 
-OF * facegroup header [varlen]
+Facegroup header [variable length]
 {
-  2B number of facegroups NOF
+  2B int : number of facegroups NOF
   2B NX ?
-  NOF * facegroup/meshdef0 offset {
-    4B int ?
-    4B int facegroup/meshdef0 offset
+  NOF * Facegroup/meshdef0 offset {
+    4B int : ?
+    4B int : facegroup/meshdef0 offset
   }
-  2B NOF again
+  2B int : NOF again
   2B NX ?  
   NX * offsets + zeros
   NOF * name {
-    2B facegroup number
-    8B char
+    2B int           : facegroup number
+    8B array of char : name
   }
 
   4B 0xFFFFFFFF header end marker
 }
 
-NOF * facegroup/meshdef0 (fg/m0) [132B]
+Facegroup/meshdef0 (fg/m0) [132B]
 {
-  4B int offset to next fg/m0, 0 if there's no next, or in some other circumstances
-  4B int offset to prev?
-  4B int offset to beginning if this is not first fg/m0?
-  4B int offset to end if offset to next = 0
-  4B int offset to meshdef1 + 4
+  4B int : offset to next fg/m0, 0 if there's no next, or in some other circumstances
+  4B int : offset to prev?
+  4B int : offset to beginning if this is not first fg/m0?
+  4B int : offset to end if offset to next = 0
+  4B int : offset to meshdef1 + 4
   8B zero
   48B 3 * {
-    4B float 1.0
+    4B float : 1.0
     12B zero
   }
-  4B int, 8 in atst, 0 in tief, 1,9,5 in atpt
+  4B int : ? 8 in atst, 0 in tief, 1,9,5 in atpt
   3 * 4B float
   3 * 4B float 1.0, 2.961700037E-02?
   4 * 4B float
   3 * 4B float - (relative) translation x/y/z?
 }
 
-NOF * facegroup/meshdef1 [96B] 
+Facegroup/meshdef1 [96B] 
 {
-  4B int facedef end offset
+  4B int : facedef end offset
   20B zero
-  4B int vertices used
+  4B int : vertex count
   4B int ?
   4B zero
-  4B int face def offset
-  4B int vertex def offset
+  4B int : Face block offset
+  4B int : Vertex block offset
   52B zero
 }
   
-NOF * face block
+Face block [variable length]
 {
   8B zero
-  4B int filepos + 4
-  4B int face count FC
-  FC * face
-  {
-    4B int face flags
-        - bits 0, 1 unknown
-        - if bit 2 is set, face has texture coordinates (uv-s)    
-        - if bit 3 is set, the face is a quad, otherwise it's a triangle
-        - if bit 4 is set, face has separate colors for each vertex
-        - if bit 5 is set, face has color
-        - if bit 6 is set, face has extra 8 bytes before vertex colors
-        - bits 7-10 unknown. higher bits don't seem to be set
-    1B int ? 46/49/4B
-    1B int ? 51/71
-    1B int ? 0C
-    1B int face block size divided by 4
-        - A = 40B, 9 = 36, etc.
-    2B int zero
-    2B int material index
-    4x 2B vertex indices, relative to the face group. The last index is zero in triangle faces 
-    if (face has extra 8 bytes) {
-        8B extra bytes
-    }
-    if (face has color) {
-        if (face has vertex colors) {
-            3/4 * 4B RGBA vertex color
-        } else {    
-            4B RGBA color
-        }
-    }
-    if (face has texture coordinates) {
-        3/4 * {
-            2B int horizontal texture coord
-            2B int vertical texture coord
-        }
-    }
+  4B int : current file position + 4
+  4B int : face count FC
+  FC * Face : faces
+}
+
+Face
+{
+  4B int : face flags
+      - bits 0, 1 unknown
+      - if bit 2 is set, face has texture coordinates (uv-s)    
+      - if bit 3 is set, the face is a quad, otherwise it's a triangle
+      - if bit 4 is set, face has separate colors for each vertex
+      - if bit 5 is set, face has color
+      - if bit 6 is set, face has extra 8 bytes before vertex colors
+      - bits 7-10 unknown. higher bits don't seem to be set
+  1B int : ? 46/49/4B
+  1B int : ? 51/71
+  1B int : ? 0C
+  1B int : face block size divided by 4
+      - A = 40B, 9 = 36, etc.
+  2B int : zero
+  2B int : material index
+  4x 2B vertex indices, relative to the face group. The last index is zero in triangle faces 
+  if (face has extra 8 bytes) {
+      8B extra bytes
+  }
+  if (face has color) {
+      if (face has vertex colors) {
+          3/4 * 4B : RGBA vertex color
+      } else {    
+          4B : RGBA color
+      }
+  }
+  if (face has texture coordinates) {
+      3/4 * {
+          2B int : horizontal texture coord (multiply by 1/4096 to get 0..1 range)
+          2B int : vertical texture coord
+      }
   }
 }
 

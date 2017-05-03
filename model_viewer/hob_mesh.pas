@@ -158,7 +158,7 @@ begin
   hob := ParseHobFile(stream);
   if hob.obj_count = 0 then exit;
 
-  for i := 0 to 0 do
+  for i := 0 to hob.obj_count-1 do
       HobReadMesh(hob.objects[i]);
   WriteLn('vertices: ', _vertices.Size);
   //WriteLn('faces (triangulated): ', _triangles.Count);
@@ -267,6 +267,7 @@ procedure TModel.InitGL;
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 
+    //this looks to differ between various meshes
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   end;
