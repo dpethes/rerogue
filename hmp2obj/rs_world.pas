@@ -199,15 +199,16 @@ var
   blk_size: integer;
   tile_count: word;
   i: integer;
+  float: single;
 begin
   AssignFile(f, fname);
   reset(f, 1);
 
   //header
   Blockread(f, buffer, 12);
-  Blockread(f, buffer, 4);
+  Blockread(f, float, 4);
   Blockread(f, heightmap.y_scale, 4);
-  Blockread(f, buffer, 4);
+  Blockread(f, float, 4);
   Blockread(f, tile_count, 2);   //tile count
   Blockread(f, buffer, 2);       //2B?
   Blockread(f, tile_offset, 4);  //tile offset
