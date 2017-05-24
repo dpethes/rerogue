@@ -402,28 +402,28 @@ var
 begin
   ImGui_ImplSdlGL2_NewFrame(g_window);
 
-  style := igGetStyle();
+  style := Imgui.GetStyle();
   style^.WindowRounding := 0;
 
-  igBegin('Mesh');
+  Imgui.Begin_('Mesh');
     if not g_model_loading_failed then begin
         Imgui.Text(g_model_name);
     end else
         Imgui.Text('mesh loading failed :(');
-  igEnd;
+  Imgui.End_;
 
-  igBegin('Rendering options');
-    igCheckbox('points', @view.opts.points);
-    igCheckbox('wireframe', @view.opts.wireframe);
-    igCheckbox('textures', @view.opts.textures);
-    igCheckbox('vertex colors', @view.opts.vcolors);
+  Imgui.Begin_('Rendering options');
+    Imgui.Checkbox('points', @view.opts.points);
+    Imgui.Checkbox('wireframe', @view.opts.wireframe);
+    Imgui.Checkbox('textures', @view.opts.textures);
+    Imgui.Checkbox('vertex colors', @view.opts.vcolors);
     if g_model <> nil then
-        if igButton('Export to obj', ImVec2Init(0,0)) then
+        if Imgui.Button('Export to obj', ImVec2Init(0,0)) then
             g_model.ExportObj('rs_exported.obj');
-  igEnd;
+  Imgui.End_;
 
   selected_mesh_name := EmptyStr;
-  igBegin('File list');
+  Imgui.Begin_('File list');
     //todo filter
     for file_item in g_filelist do begin
         fitem_selected := file_item.name = g_model_name;
@@ -432,7 +432,7 @@ begin
             selected_item := file_item;
         end;
     end;
-  igEnd;
+  Imgui.End_;
 
   if (selected_mesh_name <> EmptyStr) and (selected_mesh_name <> g_model_name) then begin
       try
