@@ -418,7 +418,7 @@ begin
     Imgui.Checkbox('textures', @view.opts.textures);
     Imgui.Checkbox('vertex colors', @view.opts.vcolors);
     if g_model <> nil then
-        if Imgui.Button('Export to obj', ImVec2Init(0,0)) then
+        if Imgui.Button('Export to obj') then
             g_model.ExportObj('rs_exported.obj');
   Imgui.End_;
 

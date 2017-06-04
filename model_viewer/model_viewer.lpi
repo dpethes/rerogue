@@ -58,6 +58,7 @@
       <Unit5>
         <Filename Value="sdl2\sdl2.pas"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="SDL2"/>
       </Unit5>
       <Unit6>
         <Filename Value="imgui\fpimgui.pas"/>
