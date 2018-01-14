@@ -46,8 +46,8 @@ var
 
   g_rsdata: TRSDatFile;
   g_filelist: TFileList;
+  g_selected_file_idx: integer;
   g_model: TModel;
-  g_model_name: string;
   g_model_loading_failed: Boolean;
 
   view: record
@@ -243,6 +243,35 @@ begin
 end;
 
 
+//Beware, not all models can be parsed correctly yet. This will leak then, but we don't care much.
+procedure LoadMesh(item: TFileListItem);
+var
+  hob, hmt: TMemoryStream;
+begin
+  try
+    if g_model <> nil then
+        g_model.Free;
+    hob := TMemoryStream.Create;
+    hob.WriteBuffer(item.node_hob^.Data^, item.node_hob^.size);
+    hob.Seek(0, soBeginning);
+
+    hmt := TMemoryStream.Create;
+    hmt.WriteBuffer(item.node_hmt^.Data^, item.node_hmt^.size);
+    hmt.Seek(0, soBeginning);
+
+    g_model := TModel.Create;
+    g_model.Load(hob, hmt);
+    g_model.InitGL;
+
+    hob.Free;
+    hmt.Free;
+    g_model_loading_failed := false;
+  except
+    g_model_loading_failed := true;
+  end;
+end;
+
+
 procedure HandleEvent(const ev: TSDL_Event; var done: boolean);
 var
   io: PImGuiIO;
@@ -305,6 +334,16 @@ begin
                 view.opts.fg_to_draw := max(0, view.opts.fg_to_draw - 1);
             SDLK_RIGHT:
                 view.opts.fg_to_draw += 1;
+            SDLK_UP:
+                if (g_selected_file_idx > 0) then begin
+                    g_selected_file_idx -= 1;
+                    LoadMesh(g_filelist[g_selected_file_idx]);
+                end;
+            SDLK_DOWN:
+                if (g_selected_file_idx < g_filelist.Size - 1) then begin
+                    g_selected_file_idx += 1;
+                    LoadMesh(g_filelist[g_selected_file_idx]);
+                end;
           end;
       end;
       SDL_KEYUP: begin
@@ -370,47 +409,28 @@ begin
   end; {case}
 end;
 
-procedure LoadMesh(item: TFileListItem);
-var
-  hob, hmt: TMemoryStream;
-begin
-  if g_model <> nil then
-      g_model.Free;
-  hob := TMemoryStream.Create;
-  hob.WriteBuffer(item.node_hob^.Data^, item.node_hob^.size);
-  hob.Seek(0, soBeginning);
-
-  hmt := TMemoryStream.Create;
-  hmt.WriteBuffer(item.node_hmt^.Data^, item.node_hmt^.size);
-  hmt.Seek(0, soBeginning);
-
-  g_model := TModel.Create;
-  g_model.Load(hob, hmt);
-  g_model.InitGL;
-
-  hob.Free;
-  hmt.Free;
-end;
 
 procedure DrawGui;
 var
   style: PImGuiStyle;
   file_item: TFileListItem;
-  fitem_selected: Boolean = false;
-  selected_mesh_name: String;
+  selected_item_idx: integer;
   selected_item: TFileListItem;
+  i: Integer;
 begin
   ImGui_ImplSdlGL2_NewFrame(g_window);
 
   style := Imgui.GetStyle();
   style^.WindowRounding := 0;
 
-  Imgui.Begin_('Mesh');
-    if not g_model_loading_failed then begin
-        Imgui.Text(g_model_name);
-    end else
-        Imgui.Text('mesh loading failed :(');
-  Imgui.End_;
+  if g_selected_file_idx >= 0 then begin
+      Imgui.Begin_('Mesh');  //window used in hob_mesh as well
+      if not g_model_loading_failed then begin
+          Imgui.Text(g_filelist[g_selected_file_idx].name);
+      end else
+          Imgui.Text('mesh loading failed :(');
+      Imgui.End_;
+  end;
 
   Imgui.Begin_('Rendering options');
     Imgui.Checkbox('points', @view.opts.points);
@@ -422,26 +442,24 @@ begin
             g_model.ExportObj('rs_exported.obj');
   Imgui.End_;
 
-  selected_mesh_name := EmptyStr;
+  if g_filelist.Size = 0 then
+      exit;
+
+  selected_item_idx := -1;
+  //todo scrolling, filter?
   Imgui.Begin_('File list');
-    //todo filter
-    for file_item in g_filelist do begin
-        fitem_selected := file_item.name = g_model_name;
-        if Imgui.Selectable(file_item.name, fitem_selected) then begin
-            selected_mesh_name := file_item.name;
+    for i := 0 to g_filelist.Size - 1 do begin
+        file_item := g_filelist[i];
+        if Imgui.Selectable(file_item.name, g_selected_file_idx = i) then begin
+            selected_item_idx := i;
             selected_item := file_item;
         end;
     end;
   Imgui.End_;
 
-  if (selected_mesh_name <> EmptyStr) and (selected_mesh_name <> g_model_name) then begin
-      try
-        LoadMesh(selected_item);
-        g_model_name := selected_mesh_name;
-        g_model_loading_failed := false;
-      except
-        g_model_loading_failed := true;
-      end;
+  if (selected_item_idx >= 0) and (selected_item_idx <> g_selected_file_idx) then begin
+      g_selected_file_idx := selected_item_idx;
+      LoadMesh(selected_item);
   end;
 end;
 
@@ -498,7 +516,7 @@ begin
   LoadMeshFilelist();
 
   g_model := nil;
-  g_model_name := '';
+  g_selected_file_idx := -1;
   g_model_loading_failed := false;
 
   writeln('Init SDL...');
