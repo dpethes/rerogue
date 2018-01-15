@@ -58,7 +58,7 @@ var
   image: TRSImage;
   buf: array[0..27] of byte;
   description: TImageDescription;
-  color_rgba: integer;
+  color_rgba: longword;
   pos: int64;
   u0, u1, bits_per_sample: byte;
 begin
@@ -73,7 +73,7 @@ begin
   bits_per_sample := f.ReadByte;
   image.type_ := f.ReadByte;
   u1 := f.ReadByte;
-  color_rgba := f.ReadDWord;
+  color_rgba := f.ReadDWord; //unused?
 
   pos := f.Position;
   f.Seek(tex.name_offset, TSeekOrigin.soBeginning);
@@ -85,8 +85,15 @@ begin
   image.sampleBits := description.sample_bits;
   image.paletteEntries := description.palette_entries;
   image.width := tex.width;
-  //if (image.width and 1) > 1 then image.width += 1;
   image.height := tex.height;
+
+  //fix stride in some images?
+  //if (image.width and 1) > 1 then image.width += 1;
+  //if (image.type_ = 4) and (image.sampleBits = 4) then
+  //    if (image.width and 1) = 1 then begin
+  //        image.width += 1;
+  //        writeln('fix width');
+  //    end;
 
   writeln('name: ', tex.name_string);
   writeln('size: ', tex.width, 'x', tex.height);

@@ -8,7 +8,7 @@ uses
 
 type
   TRGBA = record
-      color: integer;
+      color: longword;
   end;
 
   TTexCoord = record
@@ -95,7 +95,7 @@ var
   face: THobFace;
   zero: integer;
   file_pos: integer;
-  color: integer;
+  color: longword;
 begin
   zero := f.ReadQWord;
   if (zero <> 0) then
@@ -152,8 +152,8 @@ begin
       //uv coords
       if face.flags and FACE_UV > 0 then begin
           for k := 0 to face.ftype - 1 do begin
-              face.tex_coords[k].u := f.ReadWord;
-              face.tex_coords[k].v := f.ReadWord;
+              face.tex_coords[k].u := smallint(f.ReadWord);
+              face.tex_coords[k].v := smallint(f.ReadWord);
           end;
       end;
 
