@@ -32,11 +32,12 @@ type
   TMaterialArray = array of TMaterial;
 
   TRenderOpts = record
+      fg_to_draw: integer;
+      fg_all: boolean;
       wireframe: boolean;
       points: boolean;
       vcolors: boolean;
       textures: boolean;
-      fg_to_draw: integer;
   end;
 
   { TModel
@@ -57,7 +58,7 @@ type
       destructor Destroy; override;
       procedure Load(hob, hmt: TMemoryStream);
       procedure InitGL;
-      procedure DrawGL(opts: TRenderOpts);
+      procedure DrawGL(var opts: TRenderOpts);
       procedure ExportObj(const obj_name: string);
   end;
 
@@ -284,7 +285,7 @@ begin
 end;
 
 
-procedure TModel.DrawGL(opts: TRenderOpts);
+procedure TModel.DrawGL(var opts: TRenderOpts);
 var
   vert: TVertex;
   i, k: integer;
@@ -331,17 +332,32 @@ begin
   end;
 
   glColor3f(1, 1, 1);
- for k := 0 to Length(_triangles) - 1 do
-//k := min(opts.fg_to_draw, Length(_triangles) - 1);
-      for i := 0 to _triangles[k].Size - 1 do
-          DrawTri(_triangles[k][i]);
 
- if opts.wireframe then
-     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  if opts.fg_all then begin
+      for k := 0 to Length(_triangles) - 1 do begin
+          if _triangles[k].Size > 0 then
+              for i := 0 to _triangles[k].Size - 1 do
+                  DrawTri(_triangles[k][i]);
+      end;
+  end
+  else begin
+      k := min(opts.fg_to_draw, Length(_triangles) - 1);
+      opts.fg_to_draw := k;  //clip
+      if _triangles[k].Size > 0 then
+          for i := 0 to _triangles[k].Size - 1 do
+              DrawTri(_triangles[k][i]);
+  end;
 
- ImGui.Begin_('Mesh');
- ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
- ImGui.End_;
+  if opts.wireframe then
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+  ImGui.Begin_('Mesh');
+  ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
+  if opts.fg_all then
+      ImGui.Text('facegroups: %d', [Length(_triangles)])
+  else
+      ImGui.Text('facegroup: %d / %d', [opts.fg_to_draw + 1, Length(_triangles)]);
+  ImGui.End_;
 end;
 
 

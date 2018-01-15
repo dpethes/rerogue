@@ -236,6 +236,9 @@ begin
   view.x := 0;
   view.y := 0;
   view.autorotate := true;
+
+  view.opts.fg_all := true;
+  view.opts.fg_to_draw := 0;
   view.opts.wireframe := false;
   view.opts.points := false;
   view.opts.vcolors := true;
@@ -269,6 +272,7 @@ begin
   except
     g_model_loading_failed := true;
   end;
+  view.opts.fg_to_draw := 0;
 end;
 
 
@@ -308,6 +312,8 @@ begin
                 if not key_pressed.autorotate then begin
                     view.autorotate := not view.autorotate;
                     key_pressed.autorotate := true;
+                    if not view.autorotate then
+                        view.rotation_angle := 0;
                 end;
                    //g_model rendering opts
             SDLK_w:
@@ -330,6 +336,8 @@ begin
                     view.opts.textures := not view.opts.textures;
                     key_pressed.textures := true;
                 end;
+            SDLK_f:
+                view.opts.fg_all := not view.opts.fg_all;
             SDLK_LEFT:
                 view.opts.fg_to_draw := max(0, view.opts.fg_to_draw - 1);
             SDLK_RIGHT:
