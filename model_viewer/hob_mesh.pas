@@ -4,7 +4,7 @@ unit hob_mesh;
 interface
 
 uses
-  Classes, SysUtils, gl, GLext, math, gvector, fpimgui,
+  Classes, SysUtils, gl, GLext, math, gvector, fpimgui, png_writer,
   hob_parser, hmt_parser;
 
 type
@@ -25,6 +25,7 @@ type
       gl_tex_id: integer;
       width, height: integer;
       pixels: pbyte;
+      name: string;
   end;
 
   TVertexList = specialize TVector<TVertex>;
@@ -38,6 +39,10 @@ type
       points: boolean;
       vcolors: boolean;
       textures: boolean;
+  end;
+
+  TMeshOpts = record
+      export_png_textures: boolean;
   end;
 
   { TModel
@@ -54,12 +59,13 @@ type
       procedure HmtRead(stream: TMemoryStream);
       procedure HobRead(stream: TMemoryStream);
       procedure HobReadMesh(const mesh: THobObject);
+      procedure SaveMaterials(const mtl_name: string; const png_textures: boolean);
     public
       destructor Destroy; override;
       procedure Load(hob, hmt: TMemoryStream);
       procedure InitGL;
       procedure DrawGL(var opts: TRenderOpts);
-      procedure ExportObj(const obj_name: string);
+      procedure ExportObj(const obj_name: string; const png_textures: boolean);
   end;
 
 implementation
@@ -194,11 +200,16 @@ procedure TModel.HmtRead(stream: TMemoryStream);
   end;
 var
   i: integer;
+  name: string;
 begin
   _hmt := ParseHmtFile(stream);
   SetLength(_materials, _hmt.material_count);
-  for i := 0 to _hmt.material_count - 1 do
-      SetTexByName(_materials[i], _hmt.materials[i].name_string);
+  for i := 0 to _hmt.material_count - 1 do begin
+      name := _hmt.materials[i].name_string;  //preserve for obj/mtl export
+      _materials[i].name := name;
+      writeln('material: ', name);
+      SetTexByName(_materials[i], name);
+  end;
 end;
 
 
@@ -365,8 +376,7 @@ const
   HeaderComment = 'Exported with HOB viewer';
   DefaultMaterial = 'default';
 
-
-procedure TModel.ExportObj(const obj_name: string);
+procedure TModel.ExportObj(const obj_name: string; const png_textures: boolean);
 const
   DesiredUnitSize = 2;
 var
@@ -384,6 +394,8 @@ var
 
   i,j,k: integer;
   vertex_counter: Integer;
+  mat: TMaterial;
+  mtl_name: string;
 
 function GetMaxCoord: double;
 var
@@ -407,7 +419,8 @@ begin
   Rewrite(objfile);
 
   writeln(objfile, '# ' + HeaderComment);
-  writeln(objfile, 'mtllib ', obj_name + '.mtl');
+  mtl_name := obj_name + '.mtl';
+  writeln(objfile, 'mtllib ', mtl_name);
 
   //scale pass
   scaling_factor := 1;
@@ -453,8 +466,10 @@ begin
           if face.material_index <> last_material_index then begin
               if face.material_index = -1 then
                   writeln(objfile, 'usemtl ' + DefaultMaterial)
-              else
-                  writeln(objfile, 'usemtl material_id', face.material_index);
+              else begin
+                  mat := _materials[face.material_index];
+                  writeln(objfile, 'usemtl ' + mat.name);
+              end;
               last_material_index := face.material_index;
           end;
 
@@ -471,8 +486,85 @@ begin
   end;
 
   CloseFile(objfile);
+  SaveMaterials(mtl_name, png_textures);
+end;
 
-  //SaveMaterials(pdo, obj_name);
+
+procedure TModel.SaveMaterials(const mtl_name: string; const png_textures: boolean);
+var
+  mtl_file:TextFile;
+  tex_name: string;
+  mat: TMaterial;
+  pixbuf: pbyte;
+
+  procedure Flip(const samples: integer);
+  var
+    y: Integer;
+    src, dst: Pbyte;
+  begin
+    src := mat.pixels + (mat.height - 1) * mat.width * samples;
+    dst := pixbuf;
+    for y := 0 to mat.height - 1 do begin
+        move(src^, dst^, mat.width * samples);
+        src -= mat.width * samples;
+        dst += mat.width * samples;
+    end;
+  end;
+
+  procedure WriteMaterial;
+  begin
+    writeln(mtl_file, 'newmtl ', mat.name);  //begin new material
+    if mat.has_texture then begin        //texture
+        tex_name := '';
+        if mat.bpp = 24 then begin
+            tex_name := mat.name+'.pnm';
+            Flip(3);
+            if not png_textures then begin
+                pnm_save(tex_name, pixbuf, mat.width, mat.height)
+            end
+            else begin
+                tex_name := mat.name+'.png';
+                png_write(tex_name, pixbuf, mat.width, mat.height, 24);
+            end;
+        end
+        else if mat.bpp = 8 then begin
+            tex_name := mat.name+'.pgm';
+            Flip(1);
+            if not png_textures then begin
+                pgm_save(tex_name, pixbuf, mat.width, mat.height)
+            end
+            else begin
+                tex_name := mat.name+'.png';
+                png_write(tex_name, pixbuf, mat.width, mat.height, 8);
+            end;
+        end;
+        if tex_name <> '' then
+            writeln(mtl_file, 'map_Kd ' + tex_name);
+    end;
+    writeln(mtl_file, 'Ka 1.000 1.000 1.000');  //ambient color
+    writeln(mtl_file, 'Kd 1.000 1.000 1.000');  //diffuse color
+    writeln(mtl_file, 'Ks 1.000 1.000 1.000');  //specular color
+    writeln(mtl_file, 'Ns 100.0');              //specular weight
+    writeln(mtl_file, 'illum 2');               //Color on and Ambient on, Highlight on
+    writeln(mtl_file);
+  end;
+
+begin
+  pixbuf := GetMem(512*512);  //overkill for RS texture sizes
+
+  AssignFile(mtl_file, mtl_name);
+  Rewrite(mtl_file);
+
+  writeln(mtl_file, '# ' + HeaderComment);
+  mat.name := DefaultMaterial;
+  mat.has_texture := false;
+  WriteMaterial();
+  for mat in _materials do begin
+      WriteMaterial();
+  end;
+
+  CloseFile(mtl_file);
+  Freemem(pixbuf);
 end;
 
 end.

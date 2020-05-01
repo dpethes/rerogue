@@ -21,7 +21,8 @@ program model_viewer;
 uses
   sysutils, classes, math, strutils, gvector,
   gl, glu, glext, sdl2, fpimgui, fpimgui_impl_sdlgl2,
-  rs_dat, hob_mesh;
+  rs_dat, hob_mesh,
+  png_writer, dc2core;
 
 const
   SCR_W_INIT = 1280;
@@ -56,7 +57,8 @@ var
       pitch: single;
       x, y: single;
       autorotate: boolean;
-      opts: TRenderOpts;
+      render: TRenderOpts;
+      mesh: TMeshOpts;
   end;
 
   key_pressed: record
@@ -124,9 +126,8 @@ end;
 
 
 // The main drawing function.
-procedure DrawGLScene;
+procedure DrawModel;
 begin
-  glClear( GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT );
   glLoadIdentity;
 
   if view.distance < ZoomIncrement then
@@ -142,12 +143,8 @@ begin
       view.rotation_angle -= 360;
 
   if g_model <> nil then begin
-      g_model.DrawGL(view.opts);
+      g_model.DrawGL(view.render);
   end;
-
-  igRender;
-  
-  SDL_GL_SwapWindow(g_window);
 end;
 
 
@@ -237,12 +234,12 @@ begin
   view.y := 0;
   view.autorotate := true;
 
-  view.opts.fg_all := true;
-  view.opts.fg_to_draw := 0;
-  view.opts.wireframe := false;
-  view.opts.points := false;
-  view.opts.vcolors := true;
-  view.opts.textures := true;
+  view.render.fg_all := true;
+  view.render.fg_to_draw := 0;
+  view.render.wireframe := false;
+  view.render.points := false;
+  view.render.vcolors := true;
+  view.render.textures := true;
 end;
 
 
@@ -272,7 +269,7 @@ begin
   except
     g_model_loading_failed := true;
   end;
-  view.opts.fg_to_draw := 0;
+  view.render.fg_to_draw := 0;
 end;
 
 
@@ -318,30 +315,30 @@ begin
                    //g_model rendering opts
             SDLK_w:
                 if not key_pressed.wireframe then begin
-                    view.opts.wireframe := not view.opts.wireframe;
+                    view.render.wireframe := not view.render.wireframe;
                     key_pressed.wireframe := true;
                 end;
             SDLK_v:
                 if not key_pressed.vcolors then begin
-                    view.opts.vcolors := not view.opts.vcolors;
+                    view.render.vcolors := not view.render.vcolors;
                     key_pressed.vcolors := true;
                 end;
             SDLK_p:
                 if not key_pressed.points then begin
-                    view.opts.points := not view.opts.points;
+                    view.render.points := not view.render.points;
                     key_pressed.points := true;
                 end;
             SDLK_t:
                 if not key_pressed.textures then begin
-                    view.opts.textures := not view.opts.textures;
+                    view.render.textures := not view.render.textures;
                     key_pressed.textures := true;
                 end;
             SDLK_f:
-                view.opts.fg_all := not view.opts.fg_all;
+                view.render.fg_all := not view.render.fg_all;
             SDLK_LEFT:
-                view.opts.fg_to_draw := max(0, view.opts.fg_to_draw - 1);
+                view.render.fg_to_draw := max(0, view.render.fg_to_draw - 1);
             SDLK_RIGHT:
-                view.opts.fg_to_draw += 1;
+                view.render.fg_to_draw += 1;
             SDLK_UP:
                 if (g_selected_file_idx > 0) then begin
                     g_selected_file_idx -= 1;
@@ -420,34 +417,33 @@ end;
 
 procedure DrawGui;
 var
-  style: PImGuiStyle;
   file_item: TFileListItem;
   selected_item_idx: integer;
   selected_item: TFileListItem;
   i: Integer;
+  do_export: boolean;
 begin
-  ImGui_ImplSdlGL2_NewFrame(g_window);
-
-  style := Imgui.GetStyle();
-  style^.WindowRounding := 0;
-
   if g_selected_file_idx >= 0 then begin
       Imgui.Begin_('Mesh');  //window used in hob_mesh as well
       if not g_model_loading_failed then begin
           Imgui.Text(g_filelist[g_selected_file_idx].name);
       end else
           Imgui.Text('mesh loading failed :(');
+      if g_model <> nil then begin
+          do_export := Imgui.Button('Export to obj');
+          Imgui.SameLine(0, 15);
+          Imgui.Checkbox('with png textures', @view.mesh.export_png_textures);
+          if do_export then
+              g_model.ExportObj('rs_exported.obj', view.mesh.export_png_textures);
+      end;
       Imgui.End_;
   end;
 
   Imgui.Begin_('Rendering options');
-    Imgui.Checkbox('points', @view.opts.points);
-    Imgui.Checkbox('wireframe', @view.opts.wireframe);
-    Imgui.Checkbox('textures', @view.opts.textures);
-    Imgui.Checkbox('vertex colors', @view.opts.vcolors);
-    if g_model <> nil then
-        if Imgui.Button('Export to obj') then
-            g_model.ExportObj('rs_exported.obj');
+    Imgui.Checkbox('points', @view.render.points);
+    Imgui.Checkbox('wireframe', @view.render.wireframe);
+    Imgui.Checkbox('textures', @view.render.textures);
+    Imgui.Checkbox('vertex colors', @view.render.vcolors);
   Imgui.End_;
 
   if g_filelist.Size = 0 then
@@ -505,6 +501,22 @@ begin
 end;
 
 
+procedure BeginScene;
+var
+  style: PImGuiStyle;
+begin
+  ImGui_ImplSdlGL2_NewFrame(g_window);
+  style := Imgui.GetStyle();
+  style^.WindowRounding := 0;
+  glClear( GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT );
+end;
+
+procedure EndScene;
+begin
+  igRender;
+  SDL_GL_SwapWindow(g_window);
+end;
+
 //******************************************************************************
 var
   sec, frames: integer;
@@ -542,9 +554,10 @@ begin
   key_pressed.wireframe := false;
   key_pressed.fullscreen := false;
   while not Done do begin
-
+      BeginScene;
+      DrawModel;
       DrawGui;
-      DrawGLScene;
+      EndScene;
 
       while SDL_PollEvent(@event) > 0 do
           HandleEvent(event, done);
