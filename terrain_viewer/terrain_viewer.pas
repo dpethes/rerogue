@@ -21,15 +21,12 @@ program terrain_viewer;
 
 uses
   sysutils, math,
-  gl, glu, glext, sdl,
+  gl, glu, glext, gvector, sdl2, fpimgui, fpimgui_impl_sdlgl2,
   terrain_mesh, rs_dat, rs_world;
 
 const
-  SCR_W_fscrn = 1024;
-  SCR_H_fscrn = 768;
   SCR_W_INIT = 1280;
   SCR_H_INIT = 720;
-  SCREEN_BPP = 0;
   RotationAngleIncrement = 1;
   ZoomIncrement = 0.3;
   MouseZoomDistanceMultiply = 0.15;
@@ -37,12 +34,13 @@ const
   MouseTranslateMultiply = 0.025;
 
 var
+  g_window: PSDL_Window;
+  g_ogl_context: TSDL_GLContext;
+
   g_rsdata: TRSDatFile;
   g_levels: TLevelList;
+  g_selected_level_idx: integer = 0;
 
-  surface: PSDL_Surface;
-  done,
-  fullscreen: boolean;
   terrain: TTerrainMesh;
 
   view: record
@@ -51,7 +49,7 @@ var
       pitch: single;
       x, y: single;
       autorotate: boolean;
-      opts: TRenderOpts;
+      render: TRenderOpts;
   end;
 
   mouse: record
@@ -62,7 +60,7 @@ var
   end;
 
 
-procedure ReportError(s: string);
+procedure AppError(s: string);
 begin
   writeln(s);
   halt;
@@ -104,7 +102,7 @@ end;
 
 
 // function to reset our viewport after a window resize
-procedure ResizeWindow( width, height : integer );
+procedure SetGLWindowSize( width, height : integer );
 begin
   if ( height = 0 ) then
     height := 1;   // Protect against a divide by zero
@@ -118,11 +116,36 @@ begin
   glLoadIdentity;                // Reset The View
 end;
 
+procedure DrawGui;
+var
+  item: TLevelListItem;
+  i: Integer;
+begin
+  Imgui.Begin_('Rendering options');
+  Imgui.Checkbox('points', @view.render.points);
+  Imgui.Checkbox('wireframe', @view.render.wireframe);
+  Imgui.End_;
+
+  Imgui.Begin_('Level list');
+  for i := 0 to g_levels.Size - 1 do begin
+      item := g_levels[i];
+      //some levels are broken atm
+      if i in [7, 9, 15] then
+          continue;
+      if Imgui.Selectable(item.name, g_selected_level_idx = i) then begin
+          g_selected_level_idx := i;
+          terrain.Free;
+          terrain := TTerrainMesh.Create;
+          terrain.Load(g_levels[i]);
+          terrain.InitGL;
+      end;
+  end;
+  Imgui.End_;
+end;
 
 // The main drawing function.
-procedure DrawGLScene;
+procedure DrawTerrain;
 begin
-  glClear( GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT );
   glMatrixMode( GL_MODELVIEW );
   glLoadIdentity;
 
@@ -138,24 +161,73 @@ begin
   if view.rotation_angle > 360 then
       view.rotation_angle -= 360;
 
-  terrain.DrawGL(view.opts);
-  
-  SDL_GL_SwapBuffers;
+  terrain.DrawGL(view.render);
+end;
+
+procedure BeginScene;
+var
+  style: PImGuiStyle;
+begin
+  ImGui_ImplSdlGL2_NewFrame(g_window);
+  style := Imgui.GetStyle();
+  style^.WindowRounding := 0;
+  glClear( GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT );
+end;
+
+procedure EndScene;
+begin
+  glDisable(GL_LIGHTING);
+  igRender;
+  glEnable(GL_LIGHTING);
+  SDL_GL_SwapWindow(g_window);
 end;
 
 
-procedure SetMode(w, h: word; fullscreen: boolean = false);
+procedure WindowInit(w_width, w_height: integer);
 var
-  flags: UInt32;
+  ver: TSDL_Version;
+  x, y: integer;
+  flags: longword;
+  io: PImGuiIO;
 begin
-  if fullscreen then
-      flags := SDL_OPENGL or SDL_FULLSCREEN
-  else
-      flags := SDL_OPENGL or SDL_RESIZABLE;
-  surface := SDL_SetVideoMode( w, h, SCREEN_BPP, flags);
-  if surface = nil then
-      ReportError('SDL_SetVideoMode failed');
-  SDL_WM_SetCaption('HOB viewer', nil);
+  SDL_GetVersion(@ver);
+  writeln(format('SDL %d.%d.%d', [ver.major, ver.minor, ver.patch]));
+
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,  24);
+  SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE, 32);
+  SDL_GL_SetAttribute(SDL_GL_RED_SIZE,     8);
+  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,   8);
+  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,    8);
+  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,   8);
+
+  WriteLn('init window: ', w_width, 'x', w_height);
+  x := SDL_WINDOWPOS_CENTERED;
+  y := SDL_WINDOWPOS_CENTERED;
+  flags := SDL_WINDOW_SHOWN or SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE;
+  g_window := SDL_CreateWindow('RS terrain viewer', x, y, w_width, w_height, flags);
+  if g_window = nil then
+      AppError ('SDL_CreateWindow failed. Reason: ' + SDL_GetError());
+
+  g_ogl_context := SDL_GL_CreateContext(g_window);
+  if g_ogl_context = nil then begin
+      writeln ('SDL_GL_CreateContext failed. Reason: ' + SDL_GetError());
+      halt;
+  end;
+  SDL_GL_SetSwapInterval(1); //enable VSync
+
+  //setup imgui
+  io := igGetIO();
+  io^.DisplaySize.x := w_width;
+  io^.DisplaySize.y := w_height;
+  ImGui_ImplSdlGL2_Init();
+end;
+
+procedure WindowFree;
+begin
+  ImGui_ImplSdlGL2_Shutdown();
+  SDL_GL_DeleteContext(g_ogl_context);
+  SDL_DestroyWindow(g_window);
 end;
 
 
@@ -189,51 +261,46 @@ end;
 procedure InitView;
 begin
   view.rotation_angle := 0;
-  view.distance := 6;
-  view.pitch := 0;
+  view.distance := 160;
+  view.pitch := 36;
   view.x := 0;
-  view.y := 0;
+  view.y := 10;
   view.autorotate := false;
-  view.opts.wireframe := false;
-  view.opts.points := false;
-  view.opts.vcolors := true;
-  view.opts.textures := true;
+  view.render.wireframe := false;
+  view.render.points := false;
+  view.render.vcolors := true;
+  view.render.textures := true;
 end;
 
 
-procedure HandleEvent;
+procedure HandleEvent(const event: TSDL_Event; var done: boolean);
 var
- event: TSDL_Event;
+  io: PImGuiIO;
 begin
-  SDL_PollEvent( @event );
+  ImGui_ImplSdlGL2_ProcessEvent(@event);
+  io := igGetIO();
+  if ((event.type_ = SDL_MOUSEBUTTONDOWN) or
+     (event.type_ = SDL_MOUSEBUTTONUP) or
+     (event.type_ = SDL_MOUSEWHEEL) or
+     (event.type_ = SDL_MOUSEMOTION)) and io^.WantCaptureMouse then
+      exit;
+  if ((event.type_ = SDL_KEYDOWN) or (event.type_ = SDL_KEYUP)) and io^.WantCaptureKeyboard then
+      exit;
+
   case event.type_ of
        SDL_QUITEV:
            Done := true;
-
-       SDL_VIDEORESIZE:
-           begin
-             SetMode (event.resize.w, event.resize.h);
-             ResizeWindow( surface^.w, surface^.h );
-           end;
+       SDL_WINDOWEVENT: begin
+           if event.window.event = SDL_WINDOWEVENT_RESIZED then
+               SetGLWindowSize(event.window.data1, event.window.data2);
+       end;
 
        SDL_KEYDOWN:
            case event.key.keysym.sym of
              SDLK_ESCAPE:
                  Done := true;
-             SDLK_F1: begin
-                     if not fullscreen then begin
-                         SetMode(SCR_W_fscrn, SCR_H_fscrn, true);
-                         fullscreen := true;
-                     end else begin
-                         SetMode(SCR_W_INIT, SCR_H_INIT, false);
-                         fullscreen := false;
-                     end;
-                     InitGL;
-                     terrain.InitGL;
-                     ResizeWindow( surface^.w, surface^.h );
-                 end;
              SDLK_s:
-                 WindowScreenshot( surface^.w, surface^.h );
+                 WindowScreenshot(g_window^.w, g_window^.h);
              SDLK_PAGEUP:
                  view.distance += ZoomIncrement;
              SDLK_PAGEDOWN:
@@ -243,17 +310,17 @@ begin
 
              //terrain rendering opts
              SDLK_w:
-                 view.opts.wireframe := not view.opts.wireframe;
+                 view.render.wireframe := not view.render.wireframe;
              SDLK_v:
-                 view.opts.vcolors := not view.opts.vcolors;
+                 view.render.vcolors := not view.render.vcolors;
              SDLK_p:
-                 view.opts.points := not view.opts.points;
+                 view.render.points := not view.render.points;
              SDLK_t:
-                 view.opts.textures := not view.opts.textures;
+                 view.render.textures := not view.render.textures;
              SDLK_LEFT:
-                 view.opts.fg_to_draw := max(0, view.opts.fg_to_draw - 1);
+                 view.render.fg_to_draw := max(0, view.render.fg_to_draw - 1);
              SDLK_RIGHT:
-                 view.opts.fg_to_draw += 1;
+                 view.render.fg_to_draw += 1;
            end;
 
        SDL_MOUSEBUTTONDOWN: begin
@@ -265,14 +332,16 @@ begin
                mouse.last_y := event.button.y;
                view.autorotate := false;
            end;
-           if event.button.button = 5 then
-               view.distance += view.distance * MouseZoomDistanceMultiply;
-           if event.button.button = 4 then
-               view.distance -= view.distance * MouseZoomDistanceMultiply;
        end;
        SDL_MOUSEBUTTONUP: begin
            mouse.drag := false;
            view.autorotate := mouse.resume_autorotate_on_release;
+       end;
+       SDL_MOUSEWHEEL: begin
+           if event.wheel.y < 0 then
+               view.distance += view.distance * MouseZoomDistanceMultiply;
+           if event.wheel.y > 0 then
+               view.distance -= view.distance * MouseZoomDistanceMultiply;
        end;
 
        SDL_MOUSEMOTION: begin
@@ -348,6 +417,8 @@ end;
 //******************************************************************************
 var
   sec, frames: integer;
+  event: TSDL_Event;
+  done: boolean;
 
 begin
   if not (FileExists(RS_DATA_HDR) and FileExists(RS_DATA_DAT)) then begin
@@ -362,16 +433,14 @@ begin
   LoadLevelFilelist;
 
   terrain := TTerrainMesh.Create;
-  terrain.Load(g_levels[0]);
+  terrain.Load(g_levels[g_selected_level_idx]);
 
   writeln('Init SDL...');
-  SDL_Init( SDL_INIT_VIDEO );
-  SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-  
-  SetMode(SCR_W_INIT, SCR_H_INIT);
+  SDL_Init(SDL_INIT_VIDEO or SDL_INIT_TIMER);
+  WindowInit(SCR_W_INIT, SCR_H_INIT);
   writeln('Init OpenGL...');
   InitGL;
-  ResizeWindow( surface^.w, surface^.h );
+  SetGLWindowSize(g_window^.w, g_window^.h);
 
   InitView;
   terrain.InitGL;
@@ -380,15 +449,18 @@ begin
   frames := 0;
   Done := False;
   while not Done do begin
-      HandleEvent;
-      DrawGLScene;
+      BeginScene;
+      DrawTerrain;
+      DrawGui;
+      EndScene;
+
+      while SDL_PollEvent(@event) > 0 do
+          HandleEvent(event, done);
       frames += 1;
       if (SDL_GetTicks - sec) >= 1000 then begin
           write(frames:3, ' dist: ', view.distance:5:1, ' rot: ', view.rotation_angle:5:1, #13);
           frames := 0;
           sec := SDL_GetTicks;
-
-          //WindowScreenshot( surface^.w, surface^.h );
       end;
       SDL_Delay(10);
   end;

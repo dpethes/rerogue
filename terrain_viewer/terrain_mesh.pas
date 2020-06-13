@@ -316,6 +316,8 @@ begin
       else
           glDrawElements(GL_TRIANGLES, b.blocks * FacesPerBlock * 3, GL_UNSIGNED_INT, b.face_indices);
   end;
+  if opts.wireframe then
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 end;
 
 end.
