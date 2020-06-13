@@ -5,7 +5,7 @@ unit rs_world;
 interface
 
 uses
-  Classes, SysUtils;
+  Classes, SysUtils, gvector, rs_dat;
 
 const
   TEX_WIDTH = 64;
@@ -37,6 +37,15 @@ type
       texture_index_map: array of integer;
   end;
 
+  TLevelListItem = record
+      name: string;
+      hmp: PRsDatFileNode;
+      texture: PRsDatFileNode;
+      texture_index: PRsDatFileNode;
+  end;
+  TLevelList = specialize TVector<TLevelListItem>;
+
+
   { TWorld }
 
   TWorld = class
@@ -44,8 +53,8 @@ type
       world_texture: pbyte;
       height_texture: pbyte;
 
-      procedure LoadTextures(const tex_fname, texidx_fname: string);
-      procedure LoadHeightmap(fname: string);
+      procedure LoadTextures(tex_node, texindex_node: PRsDatFileNode);
+      procedure LoadHeightmap(node: PRsDatFileNode);
 
     public
       heightmap: THeightmap;
@@ -54,7 +63,7 @@ type
       property TileWidth: word read heightmap.width;
       property TileHeight: word read heightmap.height;
 
-      procedure LoadFromFiles(const hmp, tex, texmap: string);
+      procedure LoadFromNodes(level: TLevelListItem);
 
       constructor Create;
       destructor Destroy; override;
@@ -135,9 +144,9 @@ end;
 
 { TWorld }
 
-procedure TWorld.LoadTextures(const tex_fname, texidx_fname: string);
+procedure TWorld.LoadTextures(tex_node, texindex_node: PRsDatFileNode);
 var
-  f: file;
+  f: TMemoryStream;
   buf: pbyte;
   tex_size: integer;
   i: Integer;
@@ -146,12 +155,13 @@ var
   palette_size: Integer;
   texture_count: integer;
 begin
-  AssignFile(f, tex_fname);
-  reset(f, 1);
+  f := TMemoryStream.Create;
+  f.WriteBuffer(tex_node^.Data^, tex_node^.size);
+  f.Seek(0, soBeginning);
 
   palette_size := 48;  //16x RGB
   tex_size := TEX_WIDTH * TEX_HEIGHT div 2;
-  texture_count := filesize(f) div (tex_size + palette_size);
+  texture_count := f.Size div (tex_size + palette_size);
   //writeln('texture_count: ', texture_count);
 
   SetLength(heightmap.textures, texture_count);
@@ -160,27 +170,28 @@ begin
   buf := getmem(tex_size);
   for i := 0 to texture_count - 1 do begin
       image := getmem(TEX_WIDTH * TEX_HEIGHT * 3);
-      Blockread(f, buf^, tex_size);
-      Blockread(f, palette, palette_size);
+      f.Read(buf^, tex_size);
+      f.Read(palette, palette_size);
       convert_4bit_to_24bit(buf, TEX_WIDTH, TEX_HEIGHT, image, palette);
       heightmap.textures[i] := image;
   end;
   freemem(buf);
-  CloseFile(f);
+  f.Free;
 
-  AssignFile(f, texidx_fname);
-  Reset(f, 1);
+  f := TMemoryStream.Create;
+  f.WriteBuffer(texindex_node^.Data^, texindex_node^.size);
+  f.Seek(0, soBeginning);
 
-  texture_count := filesize(f) div 4 - 1;
+  texture_count := f.Size div 4 - 1;  //should match previous texture_count from texture atlas?
   SetLength(heightmap.texture_index_map, texture_count);
-  Blockread(f, heightmap.texture_index_map[0], texture_count * 4);
+  f.Read(heightmap.texture_index_map[0], texture_count * 4);
 
-  CloseFile(f);
+  f.Free;
 end;
 
-procedure TWorld.LoadHeightmap(fname: string);
+procedure TWorld.LoadHeightmap(node: PRsDatFileNode);
 var
-  f: file;
+  f: TMemoryStream;
   buffer: array[0..15] of byte;
   tile_offset: integer;
   blk: pword;
@@ -188,44 +199,45 @@ var
   tile_count: word;
   i: integer;
 begin
-  AssignFile(f, fname);
-  reset(f, 1);
+  f := TMemoryStream.Create;
+  f.WriteBuffer(node^.Data^, node^.size);
+  f.Seek(0, soBeginning);
 
   //header
-  Blockread(f, buffer, 12);
-  Blockread(f, buffer, 4);
-  Blockread(f, heightmap.y_scale, 4);
-  Blockread(f, buffer, 4);
-  Blockread(f, tile_count, 2);   //tile count
-  Blockread(f, buffer, 2);       //2B?
-  Blockread(f, tile_offset, 4);  //tile offset
-  Blockread(f, buffer, 4);       //offset?
-  Blockread(f, heightmap.width, 2);
-  Blockread(f, heightmap.height, 2);
+  f.Read(buffer, 12);
+  f.Read(buffer, 4);
+  f.Read(heightmap.y_scale, 4);  //float
+  f.Read(buffer, 4);
+  tile_count := f.ReadWord;
+  f.Read(buffer, 2);
+  tile_offset  := f.ReadDWord;
+  f.Read(buffer, 4);
+  heightmap.width := f.ReadWord;
+  heightmap.height := f.ReadWord;
 
   //blocks / tile indices
   blk_size := heightmap.width * heightmap.height * 2;
   blk := getmem(blk_size);
-  Blockread(f, blk^, blk_size);
+  f.Read(blk^, blk_size);
   heightmap.blk := blk;
 
   //tiles
   //writeln('filepos: ', FilePos(f)); writeln('tile pos: ', tile_offset);
-  Seek(f, tile_offset);
+  f.Seek(tile_offset, soBeginning);
   heightmap.tile_count := tile_count;
   heightmap.tiles := getmem(tile_count * 30);
   for i := 0 to tile_count - 1 do
-      Blockread(f, heightmap.tiles[i], 30);
+      f.Read(heightmap.tiles[i], 30);
 
-  CloseFile(f);
+  f.Free;
 end;
 
-procedure TWorld.LoadFromFiles(const hmp, tex, texmap: string);
+procedure TWorld.LoadFromNodes(level: TLevelListItem);
 var
   i: Integer;
 begin
-  LoadHeightmap(hmp);
-  LoadTextures(tex, texmap);
+  LoadHeightmap(level.hmp);
+  LoadTextures(level.texture, level.texture_index);
   for i := 0 to heightmap.tile_count - 1 do begin
       heightmap.tiles[i].texture_index := heightmap.texture_index_map[heightmap.tiles[i].texture_index];
   end;

@@ -22,7 +22,7 @@ program terrain_viewer;
 uses
   sysutils, math,
   gl, glu, glext, sdl,
-  terrain_mesh;
+  terrain_mesh, rs_dat, rs_world;
 
 const
   SCR_W_fscrn = 1024;
@@ -37,6 +37,9 @@ const
   MouseTranslateMultiply = 0.025;
 
 var
+  g_rsdata: TRSDatFile;
+  g_levels: TLevelList;
+
   surface: PSDL_Surface;
   done,
   fullscreen: boolean;
@@ -298,19 +301,68 @@ begin
    end; {case}
 end;
 
+//we only care about HOB and HMT files
+procedure LoadLevelFilelist;
+  procedure AddFile(const map, level: PRsDatFileNode);
+  var
+    item: TLevelListItem;
+    fnode: PRsDatFileNode;
+  begin
+    item.name := map^.Name;  //lv_0
+    for fnode in map^.nodes do
+        if fnode^.name = 'hmp' then
+            item.hmp := fnode;
+    for fnode in level^.nodes do begin
+        if fnode^.name = item.name + '_TEX' then  //lv_0_TEX
+            item.texture_index := fnode;
+        if fnode^.name = item.name + '_TEXT' then //lv_0_TEXT
+            item.texture := fnode;
+    end;
+    g_levels.PushBack(item);
+  end;
+var
+  rs_files: TRsDatFileNodeList;
+  fnode: TRsDatFileNode;
+  data_dir, level_dir, map_dir: PRsDatFileNode;
+begin
+  //go to data/level/
+  rs_files := g_rsdata.GetStructure();
+  for fnode in rs_files do begin
+      if fnode.is_directory and (fnode.Name = 'data') then begin
+          data_dir := @fnode;
+          break;
+      end;
+  end;
+  Assert(data_dir <> nil);
+  for level_dir in data_dir^.nodes do begin
+      if level_dir^.is_directory and (level_dir^.Name = 'level') then
+          break;
+  end;
+  Assert(level_dir <> nil);
+
+  for map_dir in level_dir^.nodes do
+      if map_dir^.is_directory then
+          AddFile(map_dir, level_dir);
+end;
+
 //******************************************************************************
 var
   sec, frames: integer;
-  in_file: integer;
 
 begin
-  if Paramcount < 1 then begin
-      writeln('specify HMP file index');
+  if not (FileExists(RS_DATA_HDR) and FileExists(RS_DATA_DAT)) then begin
+      writeln('RS data files not found!');
       exit;
   end;
-  in_file := StrToInt( ParamStr(1) );
+
+  writeln('loading data');
+  g_rsdata := TRSDatFile.Create(RS_DATA_HDR, RS_DATA_DAT);
+  g_rsdata.Parse();
+  g_levels := TLevelList.Create;
+  LoadLevelFilelist;
+
   terrain := TTerrainMesh.Create;
-  terrain.Load(14);
+  terrain.Load(g_levels[0]);
 
   writeln('Init SDL...');
   SDL_Init( SDL_INIT_VIDEO );
@@ -343,5 +395,7 @@ begin
 
   terrain.Free;
   SDL_Quit;
+  g_levels.Free;
+  g_rsdata.Free;
 end.
 

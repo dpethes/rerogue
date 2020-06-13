@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="9"/>
+    <Version Value="11"/>
     <PathDelim Value="\"/>
     <General>
       <Flags>
@@ -17,9 +17,6 @@
     <i18n>
       <EnableI18N LFM="False"/>
     </i18n>
-    <VersionInfo>
-      <StringTable ProductVersion=""/>
-    </VersionInfo>
     <BuildModes Count="1">
       <Item1 Name="Default" Default="True"/>
     </BuildModes>
@@ -28,36 +25,43 @@
     </PublishOptions>
     <RunParams>
       <local>
-        <FormatVersion Value="1"/>
         <CommandLineParams Value="1"/>
       </local>
+      <FormatVersion Value="2"/>
+      <Modes Count="1">
+        <Mode0 Name="default">
+          <local>
+            <CommandLineParams Value="1"/>
+          </local>
+        </Mode0>
+      </Modes>
     </RunParams>
     <RequiredPackages Count="1">
       <Item1>
         <PackageName Value="LCL"/>
       </Item1>
     </RequiredPackages>
-    <Units Count="4">
+    <Units Count="5">
       <Unit0>
         <Filename Value="terrain_viewer.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="terrain_viewer"/>
       </Unit0>
       <Unit1>
         <Filename Value="terrain_mesh.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="terrain_mesh"/>
       </Unit1>
       <Unit2>
         <Filename Value="rs_world.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="rs_world"/>
       </Unit2>
       <Unit3>
         <Filename Value="vector_util.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="vector_util"/>
       </Unit3>
+      <Unit4>
+        <Filename Value="..\rs_units\rs_dat.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit4>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -68,11 +72,9 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
+      <OtherUnitFiles Value="..\rs_units"/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
-    <Other>
-      <CompilerPath Value="$(CompPath)"/>
-    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="2">

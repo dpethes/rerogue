@@ -48,7 +48,7 @@ type
       procedure InitBlockStaticData;
     public
       destructor Destroy; override;
-      procedure Load(level_idx: integer);
+      procedure Load(level: TLevelListItem);
       procedure InitGL;
       procedure DrawGL(opts: TRenderOpts);
   end;
@@ -78,6 +78,7 @@ const
   h_scale = 0.5;
 var
   x, y, idx: integer;
+  vx, vy, vz: single;
   v_scale: single;
 begin
   result.texture_index := tile.texture_index;
@@ -88,11 +89,11 @@ begin
   for y := 0 to 4 do
       for x := 0 to 4 do begin
           idx := y * 5 + x;
-            result.vertices[idx].init( //x,y,z, rotated by 180 around z
-            (basex + x) * h_scale * -1,
-            tile.heights[idx] * v_scale * -1,
-            (basey + y) * h_scale
-          );
+          //x,y,z, rotated by 180 around z
+          vx := (basex + x) * h_scale * -1;
+          vy := tile.heights[idx] * v_scale * -1;
+          vz := (basey + y) * h_scale;
+          result.vertices[idx].init(vx, vy, vz);
       end;
 end;
 
@@ -186,19 +187,10 @@ begin
   inherited Destroy;
 end;
 
-procedure TTerrainMesh.Load(level_idx: integer);
-const
-  LevelIds = '0123456789abcdefgh';
-var
-  c: char;
+procedure TTerrainMesh.Load(level: TLevelListItem);
 begin
   terrain := TWorld.Create;
-  level_idx := level_idx mod length(LevelIds);
-  c := LevelIds[1 + level_idx];
-  terrain.LoadFromFiles(
-       'data\hmp_' + c,
-       'data\lv_'+c+'.text',
-       'data\lv_'+c+'.tex');
+  terrain.LoadFromNodes(level);
   TransformTiles;
   InitBlockStaticData;
   WriteLn(Format('terrain size: %dx%d, tris: %d',
