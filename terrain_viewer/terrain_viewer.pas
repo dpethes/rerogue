@@ -117,6 +117,29 @@ begin
 end;
 
 procedure DrawGui;
+const
+  LevelNames: array[0..19] of string = (
+   'Ambush at Mos Eisley',
+   'Rendezvous on Barkhesh',
+   'The Search for the Nonnah',
+   'Defection at Corellia',
+   'Liberation of Gerrard V',
+   'The Jade Moon',
+   'Imperial Construction Yards',
+   'Assault on Kile II',
+   'Rescue on Kessel',
+   'Prisons of Kessel',
+   'Battle Above Taloraan',
+   'Escape from Fest',
+   'Blockade on Chandrila',
+   'Raid on Sullust',
+   'Moff Seerdon''s Revenge',
+   'The Battle of Calamari',
+   'Beggar''s Canyon',
+   'The Death Star Trench Run',
+   'The Battle of Hoth',
+   'Intro'
+  );
 var
   item: TLevelListItem;
   i: Integer;
@@ -132,7 +155,7 @@ begin
       //some levels are broken atm
       if i in [7, 9, 15] then
           continue;
-      if Imgui.Selectable(item.name, g_selected_level_idx = i) then begin
+      if Imgui.Selectable(item.name + ' - ' + LevelNames[i], g_selected_level_idx = i) then begin
           g_selected_level_idx := i;
           terrain.Free;
           terrain := TTerrainMesh.Create;
