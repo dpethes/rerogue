@@ -116,6 +116,16 @@ begin
   glLoadIdentity;                // Reset The View
 end;
 
+procedure LoadLevel();
+begin
+  Assert((0 <= g_selected_level_idx) and (g_selected_level_idx < g_levels.Size), 'broken level select');
+  if (terrain <> nil) then
+      terrain.Free;
+  terrain := TTerrainMesh.Create;
+  terrain.Load(g_levels[g_selected_level_idx]);
+  terrain.InitGL;
+end;
+
 procedure DrawGui;
 const
   LevelNames: array[0..19] of string = (
@@ -152,15 +162,9 @@ begin
   Imgui.Begin_('Level list');
   for i := 0 to g_levels.Size - 1 do begin
       item := g_levels[i];
-      //some levels are broken atm
-      if i in [7, 9, 15] then
-          continue;
       if Imgui.Selectable(item.name + ' - ' + LevelNames[i], g_selected_level_idx = i) then begin
           g_selected_level_idx := i;
-          terrain.Free;
-          terrain := TTerrainMesh.Create;
-          terrain.Load(g_levels[i]);
-          terrain.InitGL;
+          LoadLevel();
       end;
   end;
   Imgui.End_;
@@ -340,10 +344,18 @@ begin
                  view.render.points := not view.render.points;
              SDLK_t:
                  view.render.textures := not view.render.textures;
-             SDLK_LEFT:
-                 view.render.fg_to_draw := max(0, view.render.fg_to_draw - 1);
-             SDLK_RIGHT:
-                 view.render.fg_to_draw += 1;
+             SDLK_DOWN: begin
+                 g_selected_level_idx += 1;
+                 if g_selected_level_idx >= g_levels.Size then
+                     g_selected_level_idx := 0;
+                 LoadLevel();
+             end;
+             SDLK_UP: begin
+                 g_selected_level_idx -= 1;
+                 if g_selected_level_idx < 0 then
+                     g_selected_level_idx := g_levels.Size - 1;
+                 LoadLevel();
+             end;
            end;
 
        SDL_MOUSEBUTTONDOWN: begin

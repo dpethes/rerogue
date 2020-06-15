@@ -14,7 +14,6 @@ type
       points: boolean;
       vcolors: boolean;
       textures: boolean;
-      fg_to_draw: integer;
   end;
 
   TTerrainBlock = record
