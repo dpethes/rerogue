@@ -111,6 +111,17 @@ begin
   CloseFile(f);
 end;
 
+procedure FreeNode(node: PRsDatFileNode);
+var
+  i: Integer;
+begin
+  if node^.nodes <> nil then begin
+      for i := 0 to Length(node^.nodes) - 1 do
+          FreeNode(node^.nodes[i]);
+      node^.nodes := nil;
+  end;
+end;
+
 { TRSDatFile }
 
 constructor TRSDatFile.Create(const hdr_file, dat_file: string);
@@ -120,8 +131,14 @@ begin
 end;
 
 destructor TRSDatFile.Destroy;
+var
+  section: TRsHdrSection;
+  node: TRsDatFileNode;
 begin
   inherited Destroy;
+  for section in m_sections do
+      for node in section.nodes do
+          FreeNode(@node);
   m_sections := nil;
   freemem(m_data);
 end;

@@ -249,8 +249,15 @@ begin
 end;
 
 destructor TWorld.Destroy;
+var
+  tex: PByte;
 begin
   if height_texture <> nil then Freemem(height_texture);
+  for tex in heightmap.textures do
+      freemem(tex);
+  freemem(heightmap.tiles);
+  freemem(heightmap.blk);
+  heightmap.textures := nil;
   inherited Destroy;
 end;
 

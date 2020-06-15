@@ -37,7 +37,7 @@ var
   g_window: PSDL_Window;
   g_ogl_context: TSDL_GLContext;
 
-  g_rsdata: TRSDatFile;
+  g_rs_files: TRsDatFileNodeList;
   g_levels: TLevelList;
   g_selected_level_idx: integer = 0;
 
@@ -390,13 +390,11 @@ procedure LoadLevelFilelist;
     g_levels.PushBack(item);
   end;
 var
-  rs_files: TRsDatFileNodeList;
   fnode: TRsDatFileNode;
   data_dir, level_dir, map_dir: PRsDatFileNode;
 begin
   //go to data/level/
-  rs_files := g_rsdata.GetStructure();
-  for fnode in rs_files do begin
+  for fnode in g_rs_files do begin
       if fnode.is_directory and (fnode.Name = 'data') then begin
           data_dir := @fnode;
           break;
@@ -416,6 +414,7 @@ end;
 
 //******************************************************************************
 var
+  rsdata: TRSDatFile;
   sec, frames: integer;
   event: TSDL_Event;
   done: boolean;
@@ -427,8 +426,9 @@ begin
   end;
 
   writeln('loading data');
-  g_rsdata := TRSDatFile.Create(RS_DATA_HDR, RS_DATA_DAT);
-  g_rsdata.Parse();
+  rsdata := TRSDatFile.Create(RS_DATA_HDR, RS_DATA_DAT);
+  rsdata.Parse();
+  g_rs_files := rsdata.GetStructure();
   g_levels := TLevelList.Create;
   LoadLevelFilelist;
 
@@ -468,6 +468,7 @@ begin
   terrain.Free;
   SDL_Quit;
   g_levels.Free;
-  g_rsdata.Free;
+  g_rs_files.Free;
+  rsdata.Free;
 end.
 

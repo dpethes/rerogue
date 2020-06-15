@@ -183,8 +183,17 @@ begin
 end;
 
 destructor TTerrainMesh.Destroy;
+var
+  i: Integer;
 begin
   inherited Destroy;
+  for i := 0 to Length(render_batches) - 1 do begin
+      freemem(render_batches[i].vertices);
+      freemem(render_batches[i].normals);
+      freemem(render_batches[i].face_indices);
+  end;
+  render_batches := nil;
+  terrain.Free;
 end;
 
 procedure TTerrainMesh.Load(level: TLevelListItem);
@@ -280,6 +289,7 @@ begin
       if end_idx > render_blocks.Count - 1 then
           break;
   end;
+  render_blocks.Free;
 end;
 
 
