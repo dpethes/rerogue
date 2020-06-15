@@ -175,10 +175,10 @@ begin
   //init uv coords. block_texcoords is quite pessimistic
   SetLength(block_texcoords, VerticesPerBlock * terrain.TileHeight * terrain.TileWidth);
   for blk := 0 to Length(block_texcoords) div VerticesPerBlock - 1 do
-  for y := 0 to 4 do
-      for x := 0 to 4 do begin
-          block_texcoords[blk*25 + y * 5 + x].init(x/4, 1 - y/4);  //u, v
-      end;
+      for y := 0 to 4 do
+          for x := 0 to 4 do begin
+              block_texcoords[blk*VerticesPerBlock + y * 5 + x].init(x/4, 1 - y/4);  //u, v
+          end;
 end;
 
 destructor TTerrainMesh.Destroy;
@@ -191,7 +191,9 @@ begin
       freemem(render_batches[i].normals);
       freemem(render_batches[i].face_indices);
   end;
+  block_texcoords := nil;
   render_batches := nil;
+  blocks := nil;
   terrain.Free;
 end;
 
