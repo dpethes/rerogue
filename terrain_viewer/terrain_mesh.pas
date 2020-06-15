@@ -31,16 +31,30 @@ type
       face_indices: PInteger;
   end;
 
+  { TMemPool }
+
+  TMemPool = class
+    private
+      _p: pbyte;
+      _end: pbyte;
+      _capacity: ptruint;
+    public
+      constructor Create(capacity: ptruint);
+      destructor Destroy; override;
+      function Alloc(size:ptruint): pointer;
+  end;
+
   { TTerrainMesh }
   TTerrainMesh = class
     const
       FacesPerBlock = 4 * 4 * 2;
     private
       terrain: TWorld;
+      render_batches_mempool: TMemPool;
       blocks: array of array of TTerrainBlock;
       block_texcoords: array of Tvector2_single;  //static, 25*2*4 = 200B
-      block_face_indices: array[0..FacesPerBlock*3 - 1] of byte;  //static, 96B
       render_batches: array of TRenderBlockBatch;
+      block_face_indices: array[0..FacesPerBlock*3 - 1] of byte;  //static, 96B
 
       function TileToBlock(var tile: TTile; basey, basex: integer): TTerrainBlock;
       procedure TransformTiles;
@@ -65,6 +79,28 @@ begin
   a := PTerrainBlock(Item1);
   b := PTerrainBlock(Item2);
   result := a^.texture_index - b^.texture_index;
+end;
+
+{ TMemPool }
+
+constructor TMemPool.Create(capacity: ptruint);
+begin
+  _p := system.GetMem(capacity);
+  _end := _p;
+  _capacity := capacity;
+end;
+
+destructor TMemPool.Destroy;
+begin
+  inherited Destroy;
+  Freemem(_p);
+end;
+
+function TMemPool.Alloc(size: ptruint): pointer;
+begin
+  Assert(_end + size <= _p + _capacity);
+  result := _end;
+  _end += size;
 end;
 
 { TileToBlock
@@ -183,15 +219,9 @@ begin
 end;
 
 destructor TTerrainMesh.Destroy;
-var
-  i: Integer;
 begin
   inherited Destroy;
-  for i := 0 to Length(render_batches) - 1 do begin
-      freemem(render_batches[i].vertices);
-      freemem(render_batches[i].normals);
-      freemem(render_batches[i].face_indices);
-  end;
+  render_batches_mempool.Free;
   block_texcoords := nil;
   render_batches := nil;
   blocks := nil;
@@ -243,8 +273,10 @@ var
   x, y: integer;
   tex, k, vidx: integer;
   render_blocks: TList;
-  start_idx, end_idx, block_count: integer;
-  element_array_size: integer;
+  start_idx, how_many, block_count: integer;
+  element_array_size, i: integer;
+  render_batches_mempool_size: UInt32;
+  blocks_for_texture: array of integer;
 begin
   glEnable(GL_TEXTURE_2D);
 
@@ -254,26 +286,28 @@ begin
           render_blocks.Add(@blocks[y, x]);
   render_blocks.Sort(@TerrainBlockOrderByTex);
 
-  SetLength(render_batches, terrain.heightmap.texture_count);
-  start_idx := 0;
-  end_idx := 0;
-  for tex := 0 to terrain.heightmap.texture_count - 1 do begin
-      render_batches[tex].texture_gl_index := GenTexture(tex, true);
+  Setlength(blocks_for_texture, terrain.heightmap.texture_count);
+  FillByte(blocks_for_texture[0], terrain.heightmap.texture_count, 0);
+  for i := 0 to render_blocks.Count - 1 do
+      blocks_for_texture[PTerrainBlock(render_blocks.Items[i])^.texture_index] += 1;
 
-      while PTerrainBlock(render_blocks.Items[end_idx])^.texture_index = tex do begin
-          end_idx += 1;
-          if end_idx > render_blocks.Count - 1 then
-              break;
-      end;
-      block_count := end_idx - start_idx;
+  SetLength(render_batches, terrain.heightmap.texture_count);
+  render_batches_mempool_size := render_blocks.Count * (VerticesPerBlock * sizeof(Tvector3_single) * 2)
+                                 + render_blocks.Count * (FacesPerBlock * 3 * sizeof(integer));
+  render_batches_mempool := TMemPool.Create(render_batches_mempool_size);
+
+  start_idx := 0;
+  for tex := 0 to terrain.heightmap.texture_count - 1 do begin
+      block_count := blocks_for_texture[tex];
+      render_batches[tex].texture_gl_index := GenTexture(tex, true);
       render_batches[tex].blocks := block_count;
       if block_count = 0 then
           continue;
 
       element_array_size := block_count * VerticesPerBlock * sizeof(Tvector3_single);
-      render_batches[tex].vertices := getmem (element_array_size);
-      render_batches[tex].normals  := getmem (element_array_size);
-      render_batches[tex].face_indices := getmem (block_count * FacesPerBlock*3 * 4);
+      render_batches[tex].vertices := render_batches_mempool.Alloc(element_array_size);
+      render_batches[tex].normals  := render_batches_mempool.Alloc(element_array_size);
+      render_batches[tex].face_indices := render_batches_mempool.Alloc(block_count * FacesPerBlock * 3 * sizeof(integer));
 
       for k := 0 to block_count - 1 do begin
           move(PTerrainBlock(render_blocks.Items[start_idx + k])^.vertices[0],
@@ -287,10 +321,9 @@ begin
                   block_face_indices[vidx] + k * VerticesPerBlock;
       end;
 
-      start_idx := end_idx;
-      if end_idx > render_blocks.Count - 1 then
-          break;
+      start_idx += block_count;
   end;
+  blocks_for_texture := nil;
   render_blocks.Free;
 end;
 
