@@ -133,7 +133,7 @@ var
   blk: TTerrainBlock;
   tile: TTile;
 begin
-  SetLength(blocks, terrain.TileWidth, terrain.TileHeight);
+  SetLength(blocks, terrain.TileHeight, terrain.TileWidth);
   for y := 0 to terrain.TileHeight - 1 do begin
       for x := 0 to terrain.TileWidth - 1 do begin
           tile_idx := terrain.heightmap.blk[y * terrain.TileWidth + x];
