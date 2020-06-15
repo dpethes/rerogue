@@ -119,8 +119,10 @@ end;
 procedure LoadLevel();
 begin
   Assert((0 <= g_selected_level_idx) and (g_selected_level_idx < g_levels.Size), 'broken level select');
-  if (terrain <> nil) then
+  if (terrain <> nil) then begin
+      terrain.FinishGL;
       terrain.Free;
+  end;
   terrain := TTerrainMesh.Create;
   terrain.Load(g_levels[g_selected_level_idx]);
   terrain.InitGL;
@@ -467,9 +469,6 @@ begin
   g_levels := TLevelList.Create;
   LoadLevelFilelist;
 
-  terrain := TTerrainMesh.Create;
-  terrain.Load(g_levels[g_selected_level_idx]);
-
   writeln('Init SDL...');
   SDL_Init(SDL_INIT_VIDEO or SDL_INIT_TIMER);
   WindowInit(SCR_W_INIT, SCR_H_INIT);
@@ -478,7 +477,9 @@ begin
   SetGLWindowSize(g_window^.w, g_window^.h);
 
   InitView;
-  terrain.InitGL;
+  terrain := nil;
+  g_selected_level_idx := 0;
+  LoadLevel();
 
   sec := SDL_GetTicks;
   frames := 0;
@@ -501,6 +502,7 @@ begin
   end;
 
   terrain.Free;
+  WindowFree;
   SDL_Quit;
   g_levels.Free;
   g_rs_files.Free;

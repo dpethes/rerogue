@@ -49,6 +49,7 @@ type
       destructor Destroy; override;
       procedure Load(level: TLevelListItem);
       procedure InitGL;
+      procedure FinishGL;
       procedure DrawGL(opts: TRenderOpts);
   end;
 
@@ -291,6 +292,14 @@ begin
           break;
   end;
   render_blocks.Free;
+end;
+
+procedure TTerrainMesh.FinishGL;
+var
+  i: Integer;
+begin
+  for i := 0 to Length(render_batches) - 1 do
+      glDeleteTextures(1, @render_batches[i].texture_gl_index);
 end;
 
 
