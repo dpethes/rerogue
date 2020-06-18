@@ -36,7 +36,8 @@ type
       textures: array of THmtTexture;
   end;
 
-  function ParseHmtFile(f: TMemoryStream): THmtFile;
+function ParseHmtFile(f: TMemoryStream): THmtFile;
+procedure DeallocHmt(h: THmtFile);
 
 //**************************************************************************************************
 implementation
@@ -165,6 +166,18 @@ begin
   end;
 
   result := hmt;
+end;
+
+procedure DeallocHmt(h: THmtFile);
+var
+  tex: THmtTexture;
+begin
+  for tex in h.textures do begin
+      freemem(tex.image.pixels);
+      freemem(tex.image.samples);
+  end;
+  h.textures := nil;
+  h.materials := nil;
 end;
 
 end.

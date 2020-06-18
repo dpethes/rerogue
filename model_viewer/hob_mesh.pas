@@ -214,9 +214,17 @@ end;
 
 
 destructor TModel.Destroy;
+var
+  t: TTriangleList;
 begin
   inherited Destroy;
-//  _triangles.Free;
+  for t in _triangles do
+      t.Free;
+  _triangles := nil;
+  if _hmt_loaded then
+      DeallocHmt(_hmt);
+  _vertices.Free;
+  _materials := nil;
 end;
 
 procedure TModel.Load(hob, hmt: TMemoryStream);

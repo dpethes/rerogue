@@ -45,7 +45,7 @@ var
   g_window: PSDL_Window;
   g_ogl_context: TSDL_GLContext;
 
-  g_rsdata: TRSDatFile;
+  g_rs_files: TRsDatFileNodeList;
   g_filelist: TFileList;
   g_selected_file_idx: integer;
   g_model: TModel;
@@ -491,11 +491,9 @@ procedure LoadMeshFilelist;
     end;
   end;
 var
-  rs_files: TRsDatFileNodeList;
   file_: TRsDatFileNode;
 begin
-  rs_files := g_rsdata.GetStructure();
-  for file_ in rs_files do begin
+  for file_ in g_rs_files do begin
       AddFile('', @file_, nil);
   end;
 end;
@@ -519,6 +517,7 @@ end;
 
 //******************************************************************************
 var
+  rsdata: TRSDatFile;
   sec, frames: integer;
   event: TSDL_Event;
   done: boolean;
@@ -530,14 +529,11 @@ begin
   end;
 
   writeln('loading data');
-  g_rsdata := TRSDatFile.Create(RS_DATA_HDR, RS_DATA_DAT);
-  g_rsdata.Parse();
+  rsdata := TRSDatFile.Create(RS_DATA_HDR, RS_DATA_DAT);
+  rsdata.Parse();
+  g_rs_files := rsdata.GetStructure();
   g_filelist := TFileList.Create;
   LoadMeshFilelist();
-
-  g_model := nil;
-  g_selected_file_idx := -1;
-  g_model_loading_failed := false;
 
   writeln('Init SDL...');
   SDL_Init(SDL_INIT_VIDEO or SDL_INIT_TIMER);
@@ -547,6 +543,9 @@ begin
   SetGLWindowSize(g_window^.w, g_window^.h);
 
   InitView;
+  g_model := nil;
+  g_selected_file_idx := 0;
+  LoadMesh(g_filelist[0]);
 
   sec := SDL_GetTicks;
   frames := 0;
@@ -578,6 +577,7 @@ begin
   if g_model <> nil then
       g_model.Free;
   g_filelist.Free;
-  g_rsdata.Free;
+  g_rs_files.Free;
+  rsdata.Free;
 end.
 

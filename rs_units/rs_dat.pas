@@ -217,9 +217,9 @@ begin
       result.Data := mem_data + entry.offset;
 
   //if (result.offset mod 32) <> 0 then writeln('unaligned offset');
-  writeln(stderr, format('name: %s size: %d dir: %s subsize: %d flags: %s',
-                  [result.Name, entry.length, BoolToStr(result.is_directory),
-                  entry.sub_entry_size, binStr(entry.type_flag, 16)]));
+  //writeln(stderr, format('name: %s size: %d dir: %s subsize: %d flags: %s',
+  //                [result.Name, entry.length, BoolToStr(result.is_directory),
+  //                entry.sub_entry_size, binStr(entry.type_flag, 16)]));
 end;
 
 procedure TRSDatFile.ReadSectionEntries(var section: TRsHdrSection; const mem_data: pbyte);
