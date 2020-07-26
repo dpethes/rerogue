@@ -30,11 +30,14 @@ type
 
   TVertexList = specialize TVector<TVertex>;
   TTriangleList = specialize TVector<TTriangle>;
+  TTriangleListList = specialize TVector<TTriangleList>;
+  TTriangleListListList = specialize TVector<TTriangleListList>;
   TMaterialArray = array of TMaterial;
 
   TRenderOpts = record
       fg_to_draw: integer;
       fg_all: boolean;
+      obj_to_draw: integer;
       wireframe: boolean;
       points: boolean;
       vcolors: boolean;
@@ -52,8 +55,8 @@ type
   TModel = class
     private
       _vertices: TVertexList;
-      _triangles: array of TTriangleList;
-      _materials: array of TMaterial;
+      _triangles: TTriangleListListList;
+      _materials: TMaterialArray;
       _hmt: THmtFile;
       _hmt_loaded: boolean;
       procedure HmtRead(stream: TMemoryStream);
@@ -98,6 +101,7 @@ var
   triangle: TTriangle;
   fg_idx: integer;
   tris: TTriangleList;
+  mesh_tris: TTriangleListList;
   last_idx: integer;
 
   function InitVertex(face: THobFace; offset: integer): TTriangle;
@@ -116,7 +120,7 @@ var
 
 begin
   group_vertices := TVertexList.Create;
-  setlength(_triangles, Length(mesh.face_groups));
+  mesh_tris := TTriangleListList.Create;
   fg_idx := 0;
   last_idx:=0;
   for fg in mesh.face_groups do begin
@@ -136,7 +140,7 @@ begin
           v.y := -v.y;
           v.x := -v.x;
 
-          _vertices.PushBack(v);
+          _vertices.PushBack(v); // TODO(?): _vertices per object (not all)
           group_vertices.PushBack(v);
       end;
       tris := TTriangleList.Create;
@@ -148,12 +152,13 @@ begin
               tris.PushBack(triangle);
           end;
       end;
-      _triangles[fg_idx] := tris;
+      mesh_tris.PushBack(tris);
       fg_idx += 1;
       group_vertices.Clear;
       last_idx:=fg.fg_group_id;
   end;
   group_vertices.Free;
+  _triangles.PushBack(mesh_tris);
 end;
 
 
@@ -215,11 +220,15 @@ end;
 
 destructor TModel.Destroy;
 var
-  t: TTriangleList;
+  t: TTriangleListList;
+  tt: TTriangleList;
 begin
   inherited Destroy;
-  for t in _triangles do
+  for t in _triangles do begin
+      for tt in t do
+          tt.Free;
       t.Free;
+  end;
   _triangles := nil;
   if _hmt_loaded then
       DeallocHmt(_hmt);
@@ -230,7 +239,7 @@ end;
 procedure TModel.Load(hob, hmt: TMemoryStream);
 begin
   _vertices := TVertexList.Create;
-  //_triangles := TTriangleList.Create;
+  _triangles := TTriangleListListList.Create;
   WriteLn('Loading mesh file');
   HobRead(hob);
   WriteLn('Loading material file');
@@ -307,7 +316,7 @@ end;
 procedure TModel.DrawGL(var opts: TRenderOpts);
 var
   vert: TVertex;
-  i, k: integer;
+  i, j, k: integer;
   triangle_count: integer = 0;
 
   procedure DrawTri(tri: TTriangle);
@@ -351,32 +360,37 @@ begin
   end;
 
   glColor3f(1, 1, 1);
-
-  if opts.fg_all then begin
-      for k := 0 to Length(_triangles) - 1 do begin
-          if _triangles[k].Size > 0 then
-              for i := 0 to _triangles[k].Size - 1 do
-                  DrawTri(_triangles[k][i]);
+  if _triangles.Size > 0 then begin
+    j := min(integer(opts.obj_to_draw), integer(_triangles.Size - 1));
+    opts.obj_to_draw := j; // clip
+    if _triangles[j].Size > 0 then begin
+      if opts.fg_all then begin
+          for k := 0 to _triangles[j].Size - 1 do
+              if _triangles[j][k].Size > 0 then
+                  for i := 0 to _triangles[j][k].Size - 1 do
+                      DrawTri(_triangles[j][k][i]);
+      end
+      else begin
+          k := min(integer(opts.fg_to_draw), integer(_triangles[j].Size - 1));
+          opts.fg_to_draw := k;  //clip
+          if _triangles[j][k].Size > 0 then
+              for i := 0 to _triangles[j][k].Size - 1 do
+                  DrawTri(_triangles[j][k][i]);
       end;
-  end
-  else begin
-      k := min(opts.fg_to_draw, Length(_triangles) - 1);
-      opts.fg_to_draw := k;  //clip
-      if _triangles[k].Size > 0 then
-          for i := 0 to _triangles[k].Size - 1 do
-              DrawTri(_triangles[k][i]);
+
+      if opts.wireframe then
+          glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+      ImGui.Begin_('Mesh');
+      ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
+      ImGui.Text('object: %d / %d', [opts.obj_to_draw + 1, _triangles.Size]);
+      if opts.fg_all then
+          ImGui.Text('facegroups: %d', [_triangles[opts.obj_to_draw].Size])
+      else
+          ImGui.Text('facegroup: %d / %d', [opts.fg_to_draw + 1, _triangles[opts.obj_to_draw].Size]);
+      ImGui.End_;
+    end;
   end;
-
-  if opts.wireframe then
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-  ImGui.Begin_('Mesh');
-  ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
-  if opts.fg_all then
-      ImGui.Text('facegroups: %d', [Length(_triangles)])
-  else
-      ImGui.Text('facegroup: %d / %d', [opts.fg_to_draw + 1, Length(_triangles)]);
-  ImGui.End_;
 end;
 
 
@@ -434,10 +448,12 @@ begin
   scaling_factor := 1;
   //scaling_factor := DesiredUnitSize / GetMaxCoord;
 
+  // just export first object for now -- TODO: allow object selection later
+
   //vertex pass
-  for k := 0 to Length(_triangles) - 1 do
-      for i := 0 to _triangles[k].Size - 1 do begin
-          face := _triangles[k][i];
+  for k := 0 to _triangles[0].Size - 1 do
+      for i := 0 to _triangles[0][k].Size - 1 do begin
+          face := _triangles[0][k][i];
           for vt in face.vertices do begin
               x := (vt.x) * scaling_factor;
               y := (vt.y) * scaling_factor;
@@ -447,9 +463,9 @@ begin
       end;
 
   //uv pass
-  for k := 0 to Length(_triangles) - 1 do
-      for i := 0 to _triangles[k].Size - 1 do begin
-          face := _triangles[k][i];
+  for k := 0 to _triangles[0].Size - 1 do
+      for i := 0 to _triangles[0][k].Size - 1 do begin
+          face := _triangles[0][k][i];
           for j := 0 to 2 do begin
               u := face.tex_coords[j, 0];
               v := face.tex_coords[j, 1];
@@ -462,14 +478,14 @@ begin
   vertex_counter := 1;
   last_material_index := -1;
 
-  for k := 0 to Length(_triangles) - 1 do begin
-      if _triangles[k].Size = 0 then
+  for k := 0 to _triangles[0].Size - 1 do begin
+      if _triangles[0][k].Size = 0 then
           continue;
 
       writeln(objfile, 'g ', k);
 
-      for i := 0 to _triangles[k].Size - 1 do begin
-          face := _triangles[k][i];
+      for i := 0 to _triangles[0][k].Size - 1 do begin
+          face := _triangles[0][k][i];
 
           if face.material_index <> last_material_index then begin
               if face.material_index = -1 then
