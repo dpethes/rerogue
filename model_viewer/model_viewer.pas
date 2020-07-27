@@ -312,7 +312,8 @@ begin
                     if not view.autorotate then
                         view.rotation_angle := 0;
                 end;
-                   //g_model rendering opts
+
+            //model rendering options
             SDLK_w:
                 if not key_pressed.wireframe then begin
                     view.render.wireframe := not view.render.wireframe;
@@ -333,6 +334,8 @@ begin
                     view.render.textures := not view.render.textures;
                     key_pressed.textures := true;
                 end;
+
+            //model selection
             SDLK_f:
                 view.render.fg_all := not view.render.fg_all;
             SDLK_LEFT:
@@ -444,6 +447,15 @@ begin
     Imgui.Checkbox('wireframe', @view.render.wireframe);
     Imgui.Checkbox('textures', @view.render.textures);
     Imgui.Checkbox('vertex colors', @view.render.vcolors);
+  Imgui.End_;
+
+  Imgui.Begin_('Help');
+    Imgui.Text('Keys:');
+    Imgui.Text('S - take screenshot');
+    Imgui.Text('R - autorotate on/off');
+    Imgui.Text('F - show all object parts on/off');
+    Imgui.Text('left/right arrow - show previous/next object part');
+    Imgui.Text('top/down arrow - go to previous/next file');
   Imgui.End_;
 
   if g_filelist.Size = 0 then
