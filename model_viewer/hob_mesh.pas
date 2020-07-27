@@ -345,6 +345,8 @@ var
   end;
 
 begin
+  if _triangles.Size = 0 then
+     exit;
   if opts.wireframe then
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -360,37 +362,36 @@ begin
   end;
 
   glColor3f(1, 1, 1);
-  if _triangles.Size > 0 then begin
-    j := min(integer(opts.obj_to_draw), integer(_triangles.Size - 1));
-    opts.obj_to_draw := j; // clip
-    if _triangles[j].Size > 0 then begin
-      if opts.fg_all then begin
-          for k := 0 to _triangles[j].Size - 1 do
-              if _triangles[j][k].Size > 0 then
-                  for i := 0 to _triangles[j][k].Size - 1 do
-                      DrawTri(_triangles[j][k][i]);
-      end
-      else begin
-          k := min(integer(opts.fg_to_draw), integer(_triangles[j].Size - 1));
-          opts.fg_to_draw := k;  //clip
+
+  j := min(integer(opts.obj_to_draw), integer(_triangles.Size - 1));
+  opts.obj_to_draw := j; // clip
+  if _triangles[j].Size = 0 then
+      exit;
+  if opts.fg_all then begin
+      for k := 0 to _triangles[j].Size - 1 do
           if _triangles[j][k].Size > 0 then
               for i := 0 to _triangles[j][k].Size - 1 do
                   DrawTri(_triangles[j][k][i]);
-      end;
-
-      if opts.wireframe then
-          glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-      ImGui.Begin_('Mesh');
-      ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
-      ImGui.Text('object: %d / %d', [opts.obj_to_draw + 1, _triangles.Size]);
-      if opts.fg_all then
-          ImGui.Text('facegroups: %d', [_triangles[opts.obj_to_draw].Size])
-      else
-          ImGui.Text('facegroup: %d / %d', [opts.fg_to_draw + 1, _triangles[opts.obj_to_draw].Size]);
-      ImGui.End_;
-    end;
+  end
+  else begin
+      k := min(integer(opts.fg_to_draw), integer(_triangles[j].Size - 1));
+      opts.fg_to_draw := k;  //clip
+      if _triangles[j][k].Size > 0 then
+          for i := 0 to _triangles[j][k].Size - 1 do
+              DrawTri(_triangles[j][k][i]);
   end;
+
+  if opts.wireframe then
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+  ImGui.Begin_('Mesh');
+  ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
+  ImGui.Text('object: %d / %d', [opts.obj_to_draw + 1, _triangles.Size]);
+  if opts.fg_all then
+      ImGui.Text('facegroups: %d', [_triangles[opts.obj_to_draw].Size])
+  else
+      ImGui.Text('facegroup: %d / %d', [opts.fg_to_draw + 1, _triangles[opts.obj_to_draw].Size]);
+  ImGui.End_;
 end;
 
 
