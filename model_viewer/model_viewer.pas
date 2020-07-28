@@ -234,8 +234,8 @@ begin
   view.y := 0;
   view.autorotate := true;
 
-  view.render.fg_all := true;
-  view.render.fg_to_draw := 0;
+  view.render.show_all_parts := true;
+  view.render.part_to_draw := 0;
   view.render.obj_to_draw := 0;
   view.render.wireframe := false;
   view.render.points := false;
@@ -270,7 +270,7 @@ begin
   except
     g_model_loading_failed := true;
   end;
-  view.render.fg_to_draw := 0;
+  view.render.part_to_draw := 0;
 end;
 
 
@@ -338,11 +338,11 @@ begin
 
             //model selection
             SDLK_f:
-                view.render.fg_all := not view.render.fg_all;
+                view.render.show_all_parts := not view.render.show_all_parts;
             SDLK_LEFT:
-                view.render.fg_to_draw := max(0, view.render.fg_to_draw - 1);
+                view.render.part_to_draw := max(0, view.render.part_to_draw - 1);
             SDLK_RIGHT:
-                view.render.fg_to_draw += 1;
+                view.render.part_to_draw += 1;
             SDLK_END:
                 view.render.obj_to_draw += 1;
             SDLK_HOME:
@@ -351,14 +351,14 @@ begin
             SDLK_UP:
                 if (g_selected_file_idx > 0) then begin
                     g_selected_file_idx -= 1;
-                    view.render.fg_to_draw := 0;
+                    view.render.part_to_draw := 0;
                     view.render.obj_to_draw := 0;
                     LoadMesh(g_filelist[g_selected_file_idx]);
                 end;
             SDLK_DOWN:
                 if (g_selected_file_idx < g_filelist.Size - 1) then begin
                     g_selected_file_idx += 1;
-                    view.render.fg_to_draw := 0;
+                    view.render.part_to_draw := 0;
                     view.render.obj_to_draw := 0;
                     LoadMesh(g_filelist[g_selected_file_idx]);
                 end;

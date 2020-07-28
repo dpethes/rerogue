@@ -35,8 +35,8 @@ type
   TMaterialArray = array of TMaterial;
 
   TRenderOpts = record
-      fg_to_draw: integer;
-      fg_all: boolean;
+      part_to_draw: integer;
+      show_all_parts: boolean;
       obj_to_draw: integer;
       wireframe: boolean;
       points: boolean;
@@ -48,6 +48,17 @@ type
       export_png_textures: boolean;
   end;
 
+  TObjectPart = record
+      vertices: TVertexList;
+      triangles: TTriangleList;
+  end;
+  TObjectPartList = specialize TVector<TObjectPart>;
+
+  TRenderObject = record
+      parts: TObjectPartList;
+  end;
+  TRenderObjectList = specialize TVector<TRenderObject>;
+
   { TModel
     single HOB mesh
   }
@@ -57,13 +68,16 @@ type
       _vertices: TVertexList;
       _triangles: TTriangleListListList;
       _materials: TMaterialArray;
+      _objects: TRenderObjectList;
+
       _hmt: THmtFile;
       _hmt_loaded: boolean;
       procedure HmtRead(stream: TMemoryStream);
       procedure HobRead(stream: TMemoryStream);
-      procedure HobReadMesh(const mesh: THobObject);
+      procedure HobTransform(const hobject: THobObject);
       procedure SaveMaterials(const mtl_name: string; const png_textures: boolean);
     public
+      constructor Create;
       destructor Destroy; override;
       procedure Load(hob, hmt: TMemoryStream);
       procedure InitGL;
@@ -92,17 +106,16 @@ end;
 
 { rearrange HOB data, triangulate quads
 }
-procedure TModel.HobReadMesh(const mesh: THobObject);
+procedure TModel.HobTransform(const hobject: THobObject);
 var
   i: Integer;
   fg: THobFaceGroup;
   v: TVertex;
-  group_vertices: TVertexList;
+  current_block_vertices: TVertexList;
   triangle: TTriangle;
   fg_idx: integer;
   tris: TTriangleList;
   mesh_tris: TTriangleListList;
-  last_idx: integer;
 
   function InitVertex(face: THobFace; offset: integer): TTriangle;
   var
@@ -110,7 +123,7 @@ var
   begin
     for i := 0 to 2 do begin
         k := (i + offset) and $3;
-        result.vertices[i] := group_vertices[face.indices[k]];
+        result.vertices[i] := current_block_vertices[face.indices[k]];
         result.colors[i]   := face.vertex_colors[k];
         result.tex_coords[i, 0] := FixUvRange(face.tex_coords[k].u);
         result.tex_coords[i, 1] := FixUvRange(face.tex_coords[k].v);
@@ -118,12 +131,21 @@ var
     result.material_index := face.material_index;
   end;
 
+var
+  robject: TRenderObject;
+  robjpart: TObjectPart;
+
 begin
-  group_vertices := TVertexList.Create;
+  current_block_vertices := TVertexList.Create;  //todo just offset to vertex list
   mesh_tris := TTriangleListList.Create;
   fg_idx := 0;
-  last_idx:=0;
-  for fg in mesh.face_groups do begin
+  robject.parts := TObjectPartList.Create;
+
+  for fg in hobject.object_parts do begin
+      current_block_vertices.Clear;
+      robjpart.triangles := TTriangleList.Create;
+      robjpart.vertices := TVertexList.Create;
+
       for i := 0 to fg.vertex_count - 1 do begin
           v.x := FixRange(fg.vertices[i].x);
           v.y := FixRange(fg.vertices[i].y);
@@ -140,25 +162,30 @@ begin
           v.y := -v.y;
           v.x := -v.x;
 
-          _vertices.PushBack(v); // TODO(?): _vertices per object (not all)
-          group_vertices.PushBack(v);
+          robjpart.vertices.PushBack(v);
+          current_block_vertices.PushBack(v);
       end;
       tris := TTriangleList.Create;
       for i := 0 to fg.face_count - 1 do begin
           triangle := InitVertex(fg.faces[i], 0);
           tris.PushBack(triangle);
+          robjpart.triangles.PushBack(triangle);
+
           if fg.faces[i].ftype <> 3 then begin
               triangle := InitVertex(fg.faces[i], 2);
               tris.PushBack(triangle);
+              robjpart.triangles.PushBack(triangle);
           end;
       end;
       mesh_tris.PushBack(tris);
       fg_idx += 1;
-      group_vertices.Clear;
-      last_idx:=fg.fg_group_id;
+
+      robject.parts.PushBack(robjpart);
   end;
-  group_vertices.Free;
+  current_block_vertices.Free;
   _triangles.PushBack(mesh_tris);
+
+  _objects.PushBack(robject);
 end;
 
 
@@ -168,11 +195,13 @@ var
   hob: THobFile;
 begin
   hob := ParseHobFile(stream);
+  _objects.Clear;
   if hob.obj_count = 0 then exit;
 
   for i := 0 to hob.obj_count-1 do
-      HobReadMesh(hob.objects[i]);
-  WriteLn('vertices: ', _vertices.Size);
+      HobTransform(hob.objects[i]);
+
+  //WriteLn('vertices: ', _vertices.Size);
   //WriteLn('faces (triangulated): ', _triangles.Count);
 end;
 
@@ -218,6 +247,11 @@ begin
 end;
 
 
+constructor TModel.Create;
+begin
+  _objects := TRenderObjectList.Create;
+end;
+
 destructor TModel.Destroy;
 var
   t: TTriangleListList;
@@ -234,6 +268,7 @@ begin
       DeallocHmt(_hmt);
   _vertices.Free;
   _materials := nil;
+  _objects.Free;
 end;
 
 procedure TModel.Load(hob, hmt: TMemoryStream);
@@ -314,10 +349,6 @@ end;
 
 
 procedure TModel.DrawGL(var opts: TRenderOpts);
-var
-  vert: TVertex;
-  i, j, k: integer;
-  triangle_count: integer = 0;
 
   procedure DrawTri(tri: TTriangle);
   var
@@ -341,44 +372,53 @@ var
         glVertex3fv(@tri.vertices[k]);
     end;
     glEnd;
-    triangle_count += 1;
   end;
+
+var
+  vert: TVertex;
+  triangle_count: integer = 0;
+  robject: TRenderObject;
+  part: TObjectPart;
+  part_idx, i: integer;
 
 begin
   if _triangles.Size = 0 then
      exit;
-  if opts.wireframe then
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+  //clip selected object/part
+  opts.obj_to_draw := min(integer(opts.obj_to_draw), integer(_objects.Size - 1));
+  robject := _objects[opts.obj_to_draw];
+  opts.part_to_draw := min(integer(opts.part_to_draw), integer(robject.parts.Size - 1));
 
   glDisable(GL_TEXTURE_2D);
   if opts.points then begin
       glBegin( GL_POINTS );
       glColor3f(0, 1, 0);
-      for i := 0 to _vertices.Size - 1 do begin
-          vert := _vertices[i];
-          glVertex3fv(@vert);
+      for part in robject.parts do begin
+          if part.vertices.Size = 0 then
+              continue;
+          for i := 0 to part.vertices.Size - 1 do begin
+              vert := part.vertices[i];
+              glVertex3fv(@vert);
+          end;
       end;
       glEnd;
   end;
 
+  if opts.wireframe then
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   glColor3f(1, 1, 1);
 
-  j := min(integer(opts.obj_to_draw), integer(_triangles.Size - 1));
-  opts.obj_to_draw := j; // clip
-  if _triangles[j].Size = 0 then
-      exit;
-  if opts.fg_all then begin
-      for k := 0 to _triangles[j].Size - 1 do
-          if _triangles[j][k].Size > 0 then
-              for i := 0 to _triangles[j][k].Size - 1 do
-                  DrawTri(_triangles[j][k][i]);
-  end
-  else begin
-      k := min(integer(opts.fg_to_draw), integer(_triangles[j].Size - 1));
-      opts.fg_to_draw := k;  //clip
-      if _triangles[j][k].Size > 0 then
-          for i := 0 to _triangles[j][k].Size - 1 do
-              DrawTri(_triangles[j][k][i]);
+  for part_idx := 0 to robject.parts.Size - 1 do begin
+      if (not opts.show_all_parts) and (part_idx <> opts.part_to_draw) then
+          continue;
+      part := robject.parts[part_idx];
+      if part.triangles.Size = 0 then
+          continue;
+      for i := 0 to part.triangles.Size - 1 do begin
+          DrawTri(part.triangles[i]);
+          triangle_count += 1;
+      end;
   end;
 
   if opts.wireframe then
@@ -387,10 +427,10 @@ begin
   ImGui.Begin_('Mesh');
   ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
   ImGui.Text('object: %d / %d', [opts.obj_to_draw + 1, _triangles.Size]);
-  if opts.fg_all then
-      ImGui.Text('facegroups: %d', [_triangles[opts.obj_to_draw].Size])
+  if opts.show_all_parts then
+      ImGui.Text('parts: %d', [_triangles[opts.obj_to_draw].Size])
   else
-      ImGui.Text('facegroup: %d / %d', [opts.fg_to_draw + 1, _triangles[opts.obj_to_draw].Size]);
+      ImGui.Text('facegroup: %d / %d', [opts.part_to_draw + 1, _triangles[opts.obj_to_draw].Size]);
   ImGui.End_;
 end;
 
