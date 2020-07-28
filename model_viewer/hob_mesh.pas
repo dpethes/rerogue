@@ -30,8 +30,6 @@ type
 
   TVertexList = specialize TVector<TVertex>;
   TTriangleList = specialize TVector<TTriangle>;
-  TTriangleListList = specialize TVector<TTriangleList>;
-  TTriangleListListList = specialize TVector<TTriangleListList>;
   TMaterialArray = array of TMaterial;
 
   TRenderOpts = record
@@ -65,10 +63,9 @@ type
 
   TModel = class
     private
-      _vertices: TVertexList;
-      _triangles: TTriangleListListList;
       _materials: TMaterialArray;
       _objects: TRenderObjectList;
+      _current_robject: TRenderObject;
 
       _hmt: THmtFile;
       _hmt_loaded: boolean;
@@ -115,7 +112,6 @@ var
   triangle: TTriangle;
   fg_idx: integer;
   tris: TTriangleList;
-  mesh_tris: TTriangleListList;
 
   function InitVertex(face: THobFace; offset: integer): TTriangle;
   var
@@ -137,7 +133,6 @@ var
 
 begin
   current_block_vertices := TVertexList.Create;  //todo just offset to vertex list
-  mesh_tris := TTriangleListList.Create;
   fg_idx := 0;
   robject.parts := TObjectPartList.Create;
 
@@ -177,13 +172,11 @@ begin
               robjpart.triangles.PushBack(triangle);
           end;
       end;
-      mesh_tris.PushBack(tris);
       fg_idx += 1;
 
       robject.parts.PushBack(robjpart);
   end;
   current_block_vertices.Free;
-  _triangles.PushBack(mesh_tris);
 
   _objects.PushBack(robject);
 end;
@@ -253,28 +246,17 @@ begin
 end;
 
 destructor TModel.Destroy;
-var
-  t: TTriangleListList;
-  tt: TTriangleList;
 begin
   inherited Destroy;
-  for t in _triangles do begin
-      for tt in t do
-          tt.Free;
-      t.Free;
-  end;
-  _triangles := nil;
-  if _hmt_loaded then
-      DeallocHmt(_hmt);
-  _vertices.Free;
   _materials := nil;
   _objects.Free;
 end;
 
 procedure TModel.Load(hob, hmt: TMemoryStream);
 begin
-  _vertices := TVertexList.Create;
-  _triangles := TTriangleListListList.Create;
+  if _hmt_loaded then
+      DeallocHmt(_hmt);
+
   WriteLn('Loading mesh file');
   HobRead(hob);
   WriteLn('Loading material file');
@@ -382,12 +364,17 @@ var
   part_idx, i: integer;
 
 begin
-  if _triangles.Size = 0 then
-     exit;
+  if _objects.Size = 0 then begin
+      ImGui.Begin_('Mesh');
+      ImGui.Text('no objects');
+      ImGui.End_;
+      exit;
+  end;
 
   //clip selected object/part
   opts.obj_to_draw := min(integer(opts.obj_to_draw), integer(_objects.Size - 1));
   robject := _objects[opts.obj_to_draw];
+  _current_robject := robject;
   opts.part_to_draw := min(integer(opts.part_to_draw), integer(robject.parts.Size - 1));
 
   glDisable(GL_TEXTURE_2D);
@@ -425,12 +412,12 @@ begin
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
   ImGui.Begin_('Mesh');
-  ImGui.Text('triangles: %d (vertices: %d)', [triangle_count, _vertices.Size]);
-  ImGui.Text('object: %d / %d', [opts.obj_to_draw + 1, _triangles.Size]);
+  ImGui.Text('triangles: %d', [triangle_count]);
+  ImGui.Text('object: %d / %d', [opts.obj_to_draw + 1, _objects.Size]);
   if opts.show_all_parts then
-      ImGui.Text('parts: %d', [_triangles[opts.obj_to_draw].Size])
+      ImGui.Text('parts: %d', [robject.parts.Size])
   else
-      ImGui.Text('facegroup: %d / %d', [opts.part_to_draw + 1, _triangles[opts.obj_to_draw].Size]);
+      ImGui.Text('part: %d / %d', [opts.part_to_draw + 1, robject.parts.Size]);
   ImGui.End_;
 end;
 
@@ -442,6 +429,8 @@ const
 procedure TModel.ExportObj(const obj_name: string; const png_textures: boolean);
 const
   DesiredUnitSize = 2;
+type
+  TOutputPass = (OutPassVertex, OutPassUV, OutPassFaces);
 var
   objfile: TextFile;
   vt: TVertex;
@@ -455,29 +444,20 @@ var
   uv_counter: integer;
   last_material_index: integer;
 
-  i,j,k: integer;
-  vertex_counter: Integer;
+  i,j: integer;
+  vertex_counter, part_idx: Integer;
   mat: TMaterial;
   mtl_name: string;
 
-function GetMaxCoord: double;
-var
-  vt: TVertex;
-  i: integer;
-begin
-  result := 0;
-  for i := 0 to _vertices.Size - 1 do begin
-      vt := _vertices[i];
-      x := abs(vt.x);
-      y := abs(vt.y);
-      z := abs(vt.z);
-      coord_max := Max(z, Max(x, y));
-      if coord_max > result then
-          result := coord_max;
-  end;
-end;
+  robject: TRenderObject;
+  part: TObjectPart;
+  outpass: TOutputPass;
 
 begin
+  robject := _current_robject;
+  if (robject.parts = nil) or (robject.parts.Size = 0) then
+      exit;
+
   AssignFile(objfile, obj_name);
   Rewrite(objfile);
 
@@ -485,70 +465,65 @@ begin
   mtl_name := obj_name + '.mtl';
   writeln(objfile, 'mtllib ', mtl_name);
 
-  //scale pass
   scaling_factor := 1;
-  //scaling_factor := DesiredUnitSize / GetMaxCoord;
-
-  // just export first object for now -- TODO: allow object selection later
-
-  //vertex pass
-  for k := 0 to _triangles[0].Size - 1 do
-      for i := 0 to _triangles[0][k].Size - 1 do begin
-          face := _triangles[0][k][i];
-          for vt in face.vertices do begin
-              x := (vt.x) * scaling_factor;
-              y := (vt.y) * scaling_factor;
-              z := (vt.z) * scaling_factor;
-              writeln(objfile, 'v ', x:10:6, ' ', y:10:6, ' ', z:10:6);
-          end;
-      end;
-
-  //uv pass
-  for k := 0 to _triangles[0].Size - 1 do
-      for i := 0 to _triangles[0][k].Size - 1 do begin
-          face := _triangles[0][k][i];
-          for j := 0 to 2 do begin
-              u := face.tex_coords[j, 0];
-              v := face.tex_coords[j, 1];
-              writeln(objfile, 'vt ', u:10:6, ' ', v:10:6);
-          end;
-      end;
-
-  //face / material pass
   uv_counter := 1;
   vertex_counter := 1;
   last_material_index := -1;
+  part_idx := 0;
 
-  for k := 0 to _triangles[0].Size - 1 do begin
-      if _triangles[0][k].Size = 0 then
-          continue;
+  for outpass := Low(TOutputPass) to High(TOutputPass) do
+      for part in robject.parts do begin
+          if part.triangles.Size = 0 then
+              continue;
 
-      writeln(objfile, 'g ', k);
+          if outpass = OutPassFaces then begin
+              writeln(objfile, 'g ', part_idx);
+              part_idx += 1;
+          end;
 
-      for i := 0 to _triangles[0][k].Size - 1 do begin
-          face := _triangles[0][k][i];
+          for i := 0 to part.triangles.Size - 1 do begin
+              face := part.triangles[i];
 
-          if face.material_index <> last_material_index then begin
-              if face.material_index = -1 then
-                  writeln(objfile, 'usemtl ' + DefaultMaterial)
-              else begin
-                  mat := _materials[face.material_index];
-                  writeln(objfile, 'usemtl ' + mat.name);
+              case outpass of
+                  OutPassVertex: begin
+                      for vt in face.vertices do begin
+                          x := (vt.x) * scaling_factor;
+                          y := (vt.y) * scaling_factor;
+                          z := (vt.z) * scaling_factor;
+                          writeln(objfile, 'v ', x:10:6, ' ', y:10:6, ' ', z:10:6);
+                      end;
+                  end;
+                  OutPassUV: begin
+                      for j := 0 to 2 do begin
+                          u := face.tex_coords[j, 0];
+                          v := face.tex_coords[j, 1];
+                          writeln(objfile, 'vt ', u:10:6, ' ', v:10:6);
+                      end;
+                  end;
+                  OutPassFaces: begin
+                      if face.material_index <> last_material_index then begin
+                          if face.material_index = -1 then
+                              writeln(objfile, 'usemtl ' + DefaultMaterial)
+                          else begin
+                              mat := _materials[face.material_index];
+                              writeln(objfile, 'usemtl ' + mat.name);
+                          end;
+                          last_material_index := face.material_index;
+                      end;
+
+                      write(objfile, 'f ');
+                      for vt in face.vertices do begin
+                          write(objfile, vertex_counter);
+                          write(objfile, '/', uv_counter);
+                          write(objfile, ' ');
+                          vertex_counter += 1;
+                          uv_counter += 1;
+                      end;
+                      writeln(objfile);
+                  end;
               end;
-              last_material_index := face.material_index;
           end;
-
-          write(objfile, 'f ');
-          for vt in face.vertices do begin
-              write(objfile, vertex_counter);
-              write(objfile, '/', uv_counter);
-              write(objfile, ' ');
-              vertex_counter += 1;
-              uv_counter += 1;
-          end;
-          writeln(objfile);
       end;
-  end;
 
   CloseFile(objfile);
   SaveMaterials(mtl_name, png_textures);
