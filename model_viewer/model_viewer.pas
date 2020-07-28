@@ -236,6 +236,7 @@ begin
 
   view.render.fg_all := true;
   view.render.fg_to_draw := 0;
+  view.render.obj_to_draw := 0;
   view.render.wireframe := false;
   view.render.points := false;
   view.render.vcolors := true;
@@ -342,14 +343,23 @@ begin
                 view.render.fg_to_draw := max(0, view.render.fg_to_draw - 1);
             SDLK_RIGHT:
                 view.render.fg_to_draw += 1;
+            SDLK_END:
+                view.render.obj_to_draw += 1;
+            SDLK_HOME:
+                view.render.obj_to_draw := max(0, view.render.obj_to_draw - 1);
+
             SDLK_UP:
                 if (g_selected_file_idx > 0) then begin
                     g_selected_file_idx -= 1;
+                    view.render.fg_to_draw := 0;
+                    view.render.obj_to_draw := 0;
                     LoadMesh(g_filelist[g_selected_file_idx]);
                 end;
             SDLK_DOWN:
                 if (g_selected_file_idx < g_filelist.Size - 1) then begin
                     g_selected_file_idx += 1;
+                    view.render.fg_to_draw := 0;
+                    view.render.obj_to_draw := 0;
                     LoadMesh(g_filelist[g_selected_file_idx]);
                 end;
           end;
