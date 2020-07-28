@@ -14,7 +14,7 @@ Object [116B]
 {
   16B array of char : name
   4B int   : facegroups offset
-  4B int   : facegroup header offset
+  4B int   : object parts offset
   4B int   : facegroup header 2 offset
   12B zero
   4B int   : ? 94, 0xD4
@@ -30,9 +30,9 @@ Object [116B]
   6x 4B float : ?
 }
 
-Facegroup header [variable length]
+Object parts (Facegroup) header [variable length]
 {
-  2B int : number of facegroups NOF
+  2B int : number of facegroups/object parts NOF
   2B NX ?
   NOF * Facegroup/meshdef0 offset {
     4B int : ?

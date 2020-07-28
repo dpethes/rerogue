@@ -50,13 +50,13 @@ type
   THobObject = record
       name: array[0..15] of byte;
       face_group_offset: integer;
-      face_group_header_offset: integer;
+      objects_part_header_offset: integer;
       face_group_header2_offset: integer;
 
       face_group_count: integer;
       face_group_count0: integer;
 
-      face_groups: array of THobFaceGroup;
+      object_parts: array of THobFaceGroup;
   end;
 
   THobFile = record
@@ -285,7 +285,7 @@ var
 begin
   f.ReadBuffer(mesh.name, 16);
   mesh.face_group_offset := f.ReadDWord;
-  mesh.face_group_header_offset := f.ReadDWord;
+  mesh.objects_part_header_offset := f.ReadDWord;
   mesh.face_group_header2_offset := f.ReadDWord;
 
   //TODO skipped stuff
@@ -293,9 +293,9 @@ begin
   writeln('object: ', NameToString(mesh.name));
   writeln('face group offset: ', mesh.face_group_offset);
 
-  //Facegroup header
+  //Object parts/Facegroup header
 
-  f.Seek(mesh.face_group_header_offset, fsFromBeginning); //16B zero
+  f.Seek(mesh.objects_part_header_offset, fsFromBeginning); //16B zero
   mesh.face_group_count  := f.ReadWord;  //face group count - which?
   mesh.face_group_count0 := f.ReadWord;
   if mesh.face_group_count <> mesh.face_group_count0 then begin
@@ -309,11 +309,11 @@ begin
   end;
 
   //read face group defs
-  SetLength(mesh.face_groups, mesh.face_group_count);
+  SetLength(mesh.object_parts, mesh.face_group_count);
   for i := 0 to mesh.face_group_count - 1 do begin
       writeln('fg meshdef0 offset: ', fg_offsets[i], IntToHex(fg_offsets[i], 8):9);
       f.Seek(fg_offsets[i], fsFromBeginning);
-      ReadFaceGroup(mesh.face_groups[i], f);
+      ReadFaceGroup(mesh.object_parts[i], f);
   end;
   writeln;
 end;
