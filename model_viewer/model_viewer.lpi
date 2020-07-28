@@ -152,6 +152,9 @@
       </Checks>
       <VerifyObjMethodCallValidity Value="True"/>
     </CodeGeneration>
+    <Other>
+      <CustomOptions Value="-dDebug"/>
+    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="2">

@@ -66,9 +66,9 @@ type
       _materials: TMaterialArray;
       _objects: TRenderObjectList;
       _current_robject: TRenderObject;
+      _model_loaded: boolean;
 
-      _hmt: THmtFile;
-      _hmt_loaded: boolean;
+      procedure DeallocObjects;
       procedure HmtRead(stream: TMemoryStream);
       procedure HobRead(stream: TMemoryStream);
       procedure HobTransform(const hobject: THobObject);
@@ -77,7 +77,7 @@ type
       constructor Create;
       destructor Destroy; override;
       procedure Load(hob, hmt: TMemoryStream);
-      procedure InitGL;
+      procedure InitGL(hmt: THmtFile);
       procedure DrawGL(var opts: TRenderOpts);
       procedure ExportObj(const obj_name: string; const png_textures: boolean);
   end;
@@ -111,7 +111,6 @@ var
   current_block_vertices: TVertexList;
   triangle: TTriangle;
   fg_idx: integer;
-  tris: TTriangleList;
 
   function InitVertex(face: THobFace; offset: integer): TTriangle;
   var
@@ -160,15 +159,12 @@ begin
           robjpart.vertices.PushBack(v);
           current_block_vertices.PushBack(v);
       end;
-      tris := TTriangleList.Create;
       for i := 0 to fg.face_count - 1 do begin
           triangle := InitVertex(fg.faces[i], 0);
-          tris.PushBack(triangle);
           robjpart.triangles.PushBack(triangle);
 
           if fg.faces[i].ftype <> 3 then begin
               triangle := InitVertex(fg.faces[i], 2);
-              tris.PushBack(triangle);
               robjpart.triangles.PushBack(triangle);
           end;
       end;
@@ -188,11 +184,12 @@ var
   hob: THobFile;
 begin
   hob := ParseHobFile(stream);
-  _objects.Clear;
   if hob.obj_count = 0 then exit;
 
   for i := 0 to hob.obj_count-1 do
       HobTransform(hob.objects[i]);
+
+  DeallocHob(hob);
 
   //WriteLn('vertices: ', _vertices.Size);
   //WriteLn('faces (triangulated): ', _triangles.Count);
@@ -200,15 +197,18 @@ end;
 
 
 procedure TModel.HmtRead(stream: TMemoryStream);
+var
+  hmt: THmtFile;
+
   procedure SetTexByName (var mat: TMaterial; const name: string);
   var
     i: integer;
     tex: THmtTexture;
   begin
     mat.has_texture := false;
-    for i := 0 to _hmt.texture_count - 1 do
-        if _hmt.textures[i].name_string = name then begin
-            tex := _hmt.textures[i];
+    for i := 0 to hmt.texture_count - 1 do
+        if hmt.textures[i].name_string = name then begin
+            tex := hmt.textures[i];
 
             mat.bpp := 24;
             if tex.image.type_ = 3 then
@@ -229,16 +229,32 @@ var
   i: integer;
   name: string;
 begin
-  _hmt := ParseHmtFile(stream);
-  SetLength(_materials, _hmt.material_count);
-  for i := 0 to _hmt.material_count - 1 do begin
-      name := _hmt.materials[i].name_string;  //preserve for obj/mtl export
+  hmt := ParseHmtFile(stream);
+  SetLength(_materials, hmt.material_count);
+  for i := 0 to hmt.material_count - 1 do begin
+      name := hmt.materials[i].name_string;  //preserve for obj/mtl export
       _materials[i].name := name;
       writeln('material: ', name);
       SetTexByName(_materials[i], name);
   end;
+  InitGL(hmt);
+  DeallocHmt(hmt);
 end;
 
+procedure TModel.DeallocObjects;
+var
+  i, k: integer;
+begin
+  if _objects.Size = 0 then
+      exit;
+  for i := 0 to _objects.Size - 1 do begin
+      for k := 0 to _objects[i].parts.Size - 1 do begin
+          _objects[i].parts[k].vertices.Free;
+          _objects[i].parts[k].triangles.Free;
+      end;
+      _objects[i].parts.Free;
+  end;
+end;
 
 constructor TModel.Create;
 begin
@@ -248,20 +264,23 @@ end;
 destructor TModel.Destroy;
 begin
   inherited Destroy;
+  DeallocObjects;
   _materials := nil;
   _objects.Free;
 end;
 
 procedure TModel.Load(hob, hmt: TMemoryStream);
 begin
-  if _hmt_loaded then
-      DeallocHmt(_hmt);
+  if _model_loaded then begin
+      DeallocObjects;
+      _objects.Clear;
+  end;
 
   WriteLn('Loading mesh file');
   HobRead(hob);
   WriteLn('Loading material file');
   HmtRead(hmt);
-  _hmt_loaded := true;
+  _model_loaded := true;
 end;
 
 procedure pnm_save(const fname: string; const p: pbyte; const w, h: integer);
@@ -290,7 +309,7 @@ Begin
   CloseFile (f);
 end;
 
-procedure TModel.InitGL;
+procedure TModel.InitGL(hmt: THmtFile);
 
   procedure GenTexture(var mat: TMaterial);
   begin
@@ -321,9 +340,7 @@ procedure TModel.InitGL;
 var
   i: integer;
 begin
-  if not _hmt_loaded then
-      exit;
-  for i := 0 to _hmt.material_count - 1 do begin
+  for i := 0 to hmt.material_count - 1 do begin
       if _materials[i].has_texture then
           GenTexture(_materials[i]);
   end;
@@ -337,7 +354,7 @@ procedure TModel.DrawGL(var opts: TRenderOpts);
     mat: TMaterial;
     k: Integer;
   begin
-    if _hmt_loaded then begin
+    if _model_loaded then begin
         mat := _materials[tri.material_index];
         if mat.has_texture then begin
             glEnable(GL_TEXTURE_2D);

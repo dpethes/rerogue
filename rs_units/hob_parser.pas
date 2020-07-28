@@ -65,6 +65,7 @@ type
   end;
 
 function ParseHobFile(f: TMemoryStream): THobFile;
+procedure DeallocHob(var h: THobFile);
 
 //**************************************************************************************************
 implementation
@@ -346,6 +347,24 @@ begin
   end;
 
   result := hob;
+end;
+
+procedure DeallocHob(var h: THobFile);
+var
+  o: THobObject;
+  fg: THobFaceGroup;
+  i, k: Integer;
+begin
+  for k := 0 to Length(h.objects) - 1 do begin
+      o := h.objects[k];
+      for i := 0 to Length(o.object_parts) - 1 do begin
+          fg := o.object_parts[i];
+          fg.vertices := nil;
+          fg.faces := nil;
+      end;
+      o.object_parts := nil;
+  end;
+  h.objects := nil;
 end;
 
 end.

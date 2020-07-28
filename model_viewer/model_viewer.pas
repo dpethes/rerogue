@@ -262,7 +262,6 @@ begin
 
     g_model := TModel.Create;
     g_model.Load(hob, hmt);
-    g_model.InitGL;
 
     hob.Free;
     hmt.Free;
@@ -598,13 +597,14 @@ begin
       //WindowScreenshot( surface^.w, surface^.h );
   end;
 
-  WindowFree;
-  SDL_Quit;
-
+{$ifdef DEBUG}
   if g_model <> nil then
       g_model.Free;
+  WindowFree;
+  SDL_Quit;
   g_filelist.Free;
   g_rs_files.Free;
   rsdata.Free;
+{$endif}
 end.
 
