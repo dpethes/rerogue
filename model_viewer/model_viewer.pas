@@ -339,10 +339,14 @@ begin
             //model selection
             SDLK_f:
                 view.render.show_all_parts := not view.render.show_all_parts;
-            SDLK_LEFT:
+            SDLK_LEFT: begin
+                view.render.show_all_parts := false;
                 view.render.part_to_draw := max(0, view.render.part_to_draw - 1);
-            SDLK_RIGHT:
+            end;
+            SDLK_RIGHT: begin
+                view.render.show_all_parts := false;
                 view.render.part_to_draw += 1;
+            end;
             SDLK_END:
                 view.render.obj_to_draw += 1;
             SDLK_HOME:
@@ -465,6 +469,7 @@ begin
     Imgui.Text('R - autorotate on/off');
     Imgui.Text('F - show all object parts on/off');
     Imgui.Text('left/right arrow - show previous/next object part');
+    Imgui.Text('Home/End - show previous/next object');
     Imgui.Text('top/down arrow - go to previous/next file');
   Imgui.End_;
 
