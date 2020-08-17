@@ -135,7 +135,7 @@ begin
   fg_idx := 0;
   robject.parts := TObjectPartList.Create;
 
-  for fg in hobject.object_parts do begin
+  for fg in hobject.face_groups do begin
       current_block_vertices.Clear;
       robjpart.triangles := TTriangleList.Create;
       robjpart.vertices := TVertexList.Create;
