@@ -37,8 +37,8 @@ var
   node: PRsDatFileNode;
   info: TSearchRec;
   n: integer;
-  f: file;
   subdir_path: string;
+  fr: THandle;
 begin
   path := IncludeTrailingPathDelimiter(path);
   n := 0;
@@ -64,12 +64,12 @@ begin
               end
               else begin
                   Writeln('reading file ', path + node^.name);
-                  AssignFile(f, path + node^.name);
-                  Reset(f, 1);
-                  node^.size := FileSize(f);
+                  fr := FileOpen(path + node^.name, fmOpenRead or fmShareDenyNone);
+                  node^.size := FileSeek(fr, 0, fsFromEnd);
+                  FileSeek(fr, 0, fsFromBeginning);
                   node^.Data := Getmem(node^.size);
-                  BlockRead(f, node^.Data^, node^.size);
-                  CloseFile(f);
+                  FileRead(fr, node^.Data^, node^.size);
+                  FileClose(fr);
               end;
 
               n += 1;
