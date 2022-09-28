@@ -504,6 +504,7 @@ procedure LoadMeshFilelist;
     if fnode^.is_directory then begin
         for i := 0 to Length(fnode^.nodes)-2 do  //hob/hmt always go in pairs
             AddFile(path + fnode^.Name + '/', fnode^.nodes[i], fnode^.nodes[i+1]);
+        AddFile(path + fnode^.Name + '/', fnode^.nodes[Length(fnode^.nodes)-1], nil); // in case last is a directory (e.g. dbg)
     end
     else begin
         name := fnode^.name;
