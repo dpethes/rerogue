@@ -5,22 +5,68 @@ HMP
   4B float: terrain height scale 
   4B float: always 0x3f000000
   2B int  : tile count
-  2B int  : ?
+  2B int  : terrain texture count* (see foot note) 
   4B int  : offset to tiles
-  4B int  : offset to some data?
+  4B int  : offset to lighting data
   2B int  : width in BLK
   2B int  : height in BLK
   array[width * height] of 2B int: tile indices 
-  xB ?
-  array[tile count] of TILE
-  2B 0x0000
+  xB Lighting Data
+  array[tile count] of TILE 
+  2B: zeros
+}
+
+LIGHTING DATA
+{
+  4B int  : light and shadow object count LSO (includes terrain global light object)
+  40B     : terrain global light object
+  array[LSO - 1] of Light/Shadow object ("Minus 1" becuase first light object is always terrain light)
+}
+
+TERRAIN GLOBAL LIGHT OBJECT [40B]
+{
+  4B terrain shadow color (8bit per channel RGB, last byte is always 00)
+  4B World object light color (8bit per channel RGB, last byte is always 00)
+  4B float terrain light color and intensity red channel      |
+  4B float terrain light color and intensity green channel    |---seems to be based on a max 255.0f convention, can be
+  4B float terrain light color and intensity blue channel     |   pushed higher but doesn't seem to do anything
+  4B zeros
+  4B float terrain light direction vector X |
+  4B float terrain light direction vector Y |---always normalized
+  4B float terrain light direction vector Z |
+  4B zeros
+}
+
+LIGHT/SHADOW OBJECT [32B]
+{
+  4B float    light color and intensity red channel   |   based on the same max 255.0f convention as terrain light.
+  4B float    light color and intensity green channel |---In light mode higher values = brighter light
+  4B float    light color and intensity blue channel  |   Shadow mode is inverted, higher values = darker shadows
+                                                          but the inversion also extends to the shadow color (i.e if you
+                                                          want to make a blue shadow you would need to set the blue 
+                                                          channel to 0.0f and the red and green channel to 255.0f).
+                              
+  1B bool   Actived (0 = deactivated (no light or shadow), 1 = activated (present light or shadow))
+  1B bool   Light/Shadow mode (0 = Light mode, 1 = Shadow mode)
+  1B bool   Intensity booster (0 = Unboosted, 1 = extra bright/extra dark depending on light/shadow mode.)
+                                                  Negates color inversion. i.e if you want to make a blue shadow with this option enabled you would
+                                                  need to set the blue channel to 255.0f and the red and green channel to 0.0f. Brightness is
+                                                  unaffected->higher values = darker shadows)
+  1B unknown
+  
+  4B float  Location X
+  4B float  Location Y
+  4B float  Location Z
+  4B float  Light/Shadow size XYZ
 }
 
 TILE [30B]
 {
-  2B int: texmap idx (from texture index file)
+  2B int: texmap idx (from tex file)
   1B int: ?
   1B int: lo - minimum height in tile (probably for terrain LOD? clipping?)
   1B int: hi - maximum height in tile
   array[25] of int8: 5x5 height values
 }
+
+*terrain texture count* foot note - Some levels contain tiles with an animation for a texture. This animation consists of multiple textures, or "frames" for the animation. However each animation counts only as 1 towards the terrain texture count. An example of an animated terrain texture is a tile that is textured to look like water. 
