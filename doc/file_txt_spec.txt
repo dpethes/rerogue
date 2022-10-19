@@ -1,0 +1,29 @@
+LSB type
+
+TXT
+{
+  TXT_HEADER (28B)
+  {
+    [2B] unsigned short : number of parts (always 0x05)
+    [2B] unsigned short : count of PART_HEADER
+    [4B] unsigned int   : offset to PART 1 (english)
+    [4B] unsigned int   : offset to PART 2 (dutch)
+    [4B] unsigned int   : offset to PART 3 (french)
+    [4B] unsigned int   : offset to PART 4 (spanish)
+    [4B] unsigned int   : offset to PART 5 (japanese)
+    [4B] unsigned int   : file size (or offset to EOF)
+  }
+  PART 1-5 (xB)
+  {
+    PART_HEADER (offset to the first entry / 2B):
+    {
+      unsigned short [2B]: offset to the X entry from the start of part_header offset
+    }
+    STRING_ENTRIES \0 terminated (xB) - XOR encoded part! See below.
+    {
+       All strings entries to the end of the part sould be XOR in one pass!
+       XOR each byte with byte-1 to get the correct char.
+       For the first byte of the STRING_ENTRIES block, use 0xF5 as byte-1.
+    }
+  }
+}
