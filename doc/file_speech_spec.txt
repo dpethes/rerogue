@@ -1,0 +1,15 @@
+MSB type
+
+SPEECH
+{
+  unsigned int [4B]: count of tracks
+  TRACKS (count of tracks x 4B)
+  {
+    byte [1B]: flags - only the first bit is used, switch between two samplerate (0: 8kHz / 1: 16kHz)
+    unsigned int [3B]: track datas offset from beginning of file
+  }
+  TRACKS_DATAS (filesize - Header size - Track list size xB)
+  {
+    count of tracks x compressed audio [xB]: Factor5's MORT audio codec (WIP).
+  }
+}
