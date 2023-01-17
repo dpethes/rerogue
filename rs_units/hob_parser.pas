@@ -33,11 +33,6 @@ type
       face_block_offset,
       vertex_block_offset: integer;
 
-      fg_group_id: integer;
-      transform: record
-          x,y,z: single;
-      end;
-
       face_count: integer;
       faces: array of THobFace;
 
@@ -45,18 +40,30 @@ type
       vertices: array of record
           x, y, z, unknown: smallint; //+-2^15
       end;
+      transform: record
+          x,y,z: single;
+      end;
+  end;
+
+  THobObjectPart = record
+      transform: record
+          x,y,z: single;
+      end;
+      meshdef1_offset: UInt32;
+      fg_group_id: UInt32;
   end;
 
   THobObject = record
       name: array[0..15] of byte;
       face_group_offset: integer;
       objects_part_header_offset: integer;
-      face_group_header2_offset: integer;
+      face_group_header_offset: integer;
 
+      object_part_count: integer;
       face_group_count: integer;
-      face_group_count0: integer;
 
-      object_parts: array of THobFaceGroup;
+      object_parts: array of THobObjectPart;
+      face_groups: array of THobFaceGroup;
   end;
 
   THobFile = record
@@ -203,91 +210,95 @@ begin
   end;
 end;
 
-var fgid: integer = 0;
-
 procedure ReadFaceGroup(var fg: THobFaceGroup; var f: TMemoryStream);
-var
-  fnum: single;
-  i: Integer;
-  zero: int64;
-  fg_next, fg_end: integer;
 begin
-  //read group/meshdef0
-  fg_next := f.ReadDWord;
-  f.Seek(4*2, fsFromCurrent);  //unknown
-  fg_end := f.ReadDWord;
-  fg.meshdef1_offset := f.ReadDWord;
+    //read meshdef1
+    fg.face_block_end_offset := f.ReadDWord;
+    f.Seek(20, fsFromCurrent);  //zero
+    fg.vertex_count := f.ReadDWord;
+    f.Seek(8, fsFromCurrent);  //zero
+    fg.face_block_offset := f.ReadDWord;
+    fg.vertex_block_offset := f.ReadDWord;
 
-  writeln();
-  writeln('fg: ', fgid); fgid += 1;
-  writeln('fg next: ', fg_next, ' end: ', fg_end);
-  writeln('fg meshdef1 offset:', fg.meshdef1_offset);
+    //faces
+    writeln('faces at: ', fg.face_block_offset, hexStr(fg.face_block_offset, 4):6);
+    f.Seek(fg.face_block_offset, fsFromBeginning);
+    ReadFaces(fg, f);
 
-  zero := f.ReadQWord;
-  if zero <> 0 then
-      writeln('unusual file: facegroup 0 zero');
+    //vertices
+    writeln('vertices at: ', fg.vertex_block_offset, hexStr(fg.vertex_block_offset, 4):6);
+    f.Seek(fg.vertex_block_offset, fsFromBeginning);
+    ReadVertices(fg, f, fg.vertex_count);
 
-  for i := 1 to (48) div 4 do begin
-      f.ReadBuffer(fnum, 4);
-      //writeln(fnum);
-  end;
-  fg.fg_group_id := f.ReadDWord;
-  for i := 1 to (3+3+4) do begin  //unknown floats
-      f.ReadBuffer(fnum, 4);
-      //writeln(fnum);
-  end;
-  f.ReadBuffer(fg.transform.x, 4);
-  f.ReadBuffer(fg.transform.y, 4);
-  f.ReadBuffer(fg.transform.z, 4);
-
-  writeln(fg.fg_group_id);
-  writeln(fg.transform.x:7:5);
-  writeln(fg.transform.y:7:5);
-  writeln(fg.transform.z:7:5);
-
-  if fg.meshdef1_offset > 0 then begin
-      //read meshdef1
-      f.Seek(fg.meshdef1_offset - 4, fsFromBeginning);
-      fg.face_block_end_offset := f.ReadDWord;
-      f.Seek(20, fsFromCurrent);  //zero
-      fg.vertex_count := f.ReadDWord;
-      f.Seek(8, fsFromCurrent);  //zero
-      fg.face_block_offset := f.ReadDWord;
-      fg.vertex_block_offset := f.ReadDWord;
-
-      //faces
-      writeln('faces at: ', fg.face_block_offset, hexStr(fg.face_block_offset, 4):6);
-      f.Seek(fg.face_block_offset, fsFromBeginning);
-      ReadFaces(fg, f);
-
-      //vertices
-      writeln('vertices at: ', fg.vertex_block_offset, hexStr(fg.vertex_block_offset, 4):6);
-      f.Seek(fg.vertex_block_offset, fsFromBeginning);
-      ReadVertices(fg, f, fg.vertex_count);
-
-      //if (scale > 0) then
-      //for i := 0 to fg.vertex_count - 1 do begin
-      //    //fg.vertices[i].x += trunc(tx * 300);
-      //    //fg.vertices[i].y += trunc(ty * 300);
-      //    //fg.vertices[i].z += trunc(tz * 300);
-      //  fg.vertices[i].x *= scale;
-      //  fg.vertices[i].y *= scale;
-      //  fg.vertices[i].z *= scale;
-      //end;
-  end;
+    //if (scale > 0) then
+    //for i := 0 to fg.vertex_count - 1 do begin
+    //    //fg.vertices[i].x += trunc(tx * 300);
+    //    //fg.vertices[i].y += trunc(ty * 300);
+    //    //fg.vertices[i].z += trunc(tz * 300);
+    //  fg.vertices[i].x *= scale;
+    //  fg.vertices[i].y *= scale;
+    //  fg.vertices[i].z *= scale;
+    //end;
 end;
+
+var partid: integer = 0;
+
+procedure ReadObjectPart(var part: THobObjectPart; var f: TMemoryStream);
+var
+   fnum: single;
+   i: integer;
+   zero: int64;
+   fg_next, fg_end: integer;
+begin
+   //read group/meshdef0
+   fg_next := f.ReadDWord;
+   f.Seek(4*2, fsFromCurrent);  //unknown
+   fg_end := f.ReadDWord;
+   part.meshdef1_offset := f.ReadDWord;
+
+   writeln();
+   writeln('part: ', partid); partid += 1;
+   writeln('part next: ', fg_next, ' end: ', fg_end);
+   writeln('part meshdef1 facegroups start offset:', part.meshdef1_offset);
+
+   zero := f.ReadQWord;
+   if zero <> 0 then
+       writeln('unusual file: facegroup 0 zero');
+
+   for i := 1 to (48) div 4 do begin
+       f.ReadBuffer(fnum, 4);
+       //writeln(fnum);
+   end;
+   part.fg_group_id := f.ReadDWord;
+   for i := 1 to (3+3+4) do begin  //unknown floats
+       f.ReadBuffer(fnum, 4);
+       //writeln(fnum);
+   end;
+   f.ReadBuffer(part.transform.x, 4);
+   f.ReadBuffer(part.transform.y, 4);
+   f.ReadBuffer(part.transform.z, 4);
+
+   writeln(part.fg_group_id);
+   writeln(part.transform.x:7:5);
+   writeln(part.transform.y:7:5);
+   writeln(part.transform.z:7:5);
+end;
+
 
 
 procedure ReadObject(var mesh: THobObject; var f: TMemoryStream);
 var
   i: integer;
-  fg_offsets: array of integer;
+  j: integer;
+  x: integer;
+  filepos: int64;
+  part_offsets: array of integer;
   unknown: integer;
 begin
   f.ReadBuffer(mesh.name, 16);
   mesh.face_group_offset := f.ReadDWord;
   mesh.objects_part_header_offset := f.ReadDWord;
-  mesh.face_group_header2_offset := f.ReadDWord;
+  mesh.face_group_header_offset := f.ReadDWord;
 
   //TODO skipped stuff
 
@@ -296,27 +307,49 @@ begin
 
   //Object parts/Facegroup header
 
-  f.Seek(mesh.objects_part_header_offset, fsFromBeginning); //16B zero
-  mesh.face_group_count  := f.ReadWord;  //face group count - which?
-  mesh.face_group_count0 := f.ReadWord;
-  if mesh.face_group_count <> mesh.face_group_count0 then begin
-      writeln('facegroup counts don''t match!: ', mesh.face_group_count, mesh.face_group_count0:5);
-  end;
+  f.Seek(mesh.objects_part_header_offset, fsFromBeginning); //skipped offsets/0s
+  mesh.object_part_count  := f.ReadWord;
+  mesh.face_group_count := f.ReadWord;
 
-  SetLength(fg_offsets, mesh.face_group_count);
-  for i := 0 to mesh.face_group_count - 1 do begin
+  SetLength(part_offsets, mesh.object_part_count);
+  for i := 0 to mesh.object_part_count - 1 do begin
       unknown := f.ReadDWord;
-      fg_offsets[i] := f.ReadDWord;
+      part_offsets[i] := f.ReadDWord;
   end;
 
-  //read face group defs
-  SetLength(mesh.object_parts, mesh.face_group_count);
-  for i := 0 to mesh.face_group_count - 1 do begin
-      writeln('fg meshdef0 offset: ', fg_offsets[i], IntToHex(fg_offsets[i], 8):9);
-      f.Seek(fg_offsets[i], fsFromBeginning);
-      ReadFaceGroup(mesh.object_parts[i], f);
+  filepos := f.Position;
+  //read object part defs
+  SetLength(mesh.object_parts, mesh.object_part_count);
+  for i := 0 to mesh.object_part_count - 1 do begin
+      writeln('fg meshdef0 offset: ', part_offsets[i], IntToHex(part_offsets[i], 8):9);
+      f.Seek(part_offsets[i], fsFromBeginning);
+      ReadObjectPart(mesh.object_parts[i], f);
   end;
   writeln;
+
+  f.Seek(mesh.face_group_header_offset, fsFromBeginning);
+  mesh.object_part_count  := f.ReadWord;        // <
+  mesh.face_group_count := f.ReadWord;          // < should be same as before
+
+  i := 0; // object part
+  j := 0; // face group
+  SetLength(mesh.face_groups, mesh.face_group_count);
+  while (i < mesh.object_part_count) and (j < mesh.face_group_count) do begin
+      x := f.ReadDWord;
+      if x = 0 then begin
+         i += 1;
+         continue;
+      end;
+      filepos := f.Position;
+      f.Seek(x - 4, fsFromBeginning);
+      ReadFaceGroup(mesh.face_groups[j], f);
+      f.Seek(filepos, fsFromBeginning);
+      // "inherit" transform from parent object part
+      mesh.face_groups[j].transform.x := mesh.object_parts[i].transform.x;
+      mesh.face_groups[j].transform.y := mesh.object_parts[i].transform.y;
+      mesh.face_groups[j].transform.z := mesh.object_parts[i].transform.z;
+      j += 1;
+  end;
 end;
 
 
@@ -353,15 +386,17 @@ procedure DeallocHob(var h: THobFile);
 var
   o: THobObject;
   fg: THobFaceGroup;
+  op: THobObjectPart;
   i, k: Integer;
 begin
   for k := 0 to Length(h.objects) - 1 do begin
       o := h.objects[k];
-      for i := 0 to Length(o.object_parts) - 1 do begin
-          fg := o.object_parts[i];
+      for i := 0 to Length(o.face_groups) - 1 do begin
+          fg := o.face_groups[i];
           fg.vertices := nil;
           fg.faces := nil;
       end;
+      o.face_groups := nil;
       o.object_parts := nil;
   end;
   h.objects := nil;
